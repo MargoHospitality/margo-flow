@@ -11,23 +11,23 @@
     --primary: 184 95% 31%;
     --primary-foreground: 0 0% 100%;
 
-    /* Backgrounds */
+    /* White background */
     --background: 0 0% 100%;
     --foreground: 24 67% 3%;
 
-    /* Cards use Sand #CCC1AE */
-    --card: 33 23% 74%;
+    /* Cards use Light Grey #C6C6C6 */
+    --card: 0 0% 78%;
     --card-foreground: 24 67% 3%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 24 67% 3%;
 
-    /* Secondary uses Sand */
-    --secondary: 33 23% 74%;
+    /* Secondary uses Light Grey */
+    --secondary: 0 0% 78%;
     --secondary-foreground: 24 67% 3%;
 
-    /* Muted uses Light Grey #C6C6C6 */
-    --muted: 0 0% 78%;
+    /* Muted uses lighter grey */
+    --muted: 0 0% 90%;
     --muted-foreground: 0 0% 40%;
 
     /* Accent same as primary */
@@ -39,7 +39,7 @@
 
     /* Borders use Light Grey #C6C6C6 */
     --border: 0 0% 78%;
-    --input: 0 0% 78%;
+    --input: 0 0% 85%;
     --ring: 184 95% 31%;
 
     --radius: 0.5rem;
@@ -54,27 +54,26 @@
     --sidebar-foreground: 24 67% 3%;
     --sidebar-primary: 184 95% 31%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 33 23% 74%;
+    --sidebar-accent: 0 0% 90%;
     --sidebar-accent-foreground: 24 67% 3%;
     --sidebar-border: 0 0% 78%;
     --sidebar-ring: 184 95% 31%;
   }
 
   .dark {
-    /* Keep same colors for dark mode - flat UI */
     --primary: 184 95% 31%;
     --primary-foreground: 0 0% 100%;
 
     --background: 24 67% 3%;
     --foreground: 0 0% 100%;
 
-    --card: 24 40% 10%;
+    --card: 0 0% 20%;
     --card-foreground: 0 0% 100%;
 
     --popover: 24 40% 10%;
     --popover-foreground: 0 0% 100%;
 
-    --secondary: 33 20% 25%;
+    --secondary: 0 0% 25%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 0 0% 30%;
@@ -112,21 +111,12 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Moon', 'Arial Black', sans-serif;
-    text-transform: uppercase;
-    font-weight: 700;
-    letter-spacing: 0.02em;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
   }
 }
 
 @layer components {
-  .heading-display {
-    font-family: 'Moon', 'Arial Black', sans-serif;
-    text-transform: uppercase;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-  }
-
   .text-body {
     font-family: 'Inter', system-ui, sans-serif;
     @apply font-normal leading-relaxed;

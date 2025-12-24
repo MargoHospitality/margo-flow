@@ -5,6 +5,7 @@ import { ReservationEntry } from '@/components/guest/ReservationEntry';
 import { TransportForm } from '@/components/guest/TransportForm';
 import { ConfirmationScreen } from '@/components/guest/ConfirmationScreen';
 import { LanguageSwitcher } from '@/components/guest/LanguageSwitcher';
+import margoflowLogo from '@/assets/margoflow-logo.png';
 
 type Step = 'entry' | 'form' | 'confirmation';
 
@@ -56,11 +57,13 @@ export default function Index() {
 
       {/* Main content */}
       <main className="flex-1 container max-w-lg mx-auto px-4 py-12">
-        {/* Logo / Wordmark */}
+        {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl text-primary">
-            {t('app_name')}
-          </h1>
+          <img 
+            src={margoflowLogo} 
+            alt="MargoFlow" 
+            className="h-16 md:h-20 mx-auto"
+          />
         </div>
 
         {/* Introductory text */}
