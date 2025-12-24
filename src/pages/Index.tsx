@@ -49,33 +49,30 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="gradient-hero relative overflow-hidden">
-        {/* Language switcher - top right */}
-        <div className="absolute top-4 right-4 z-20">
-          <LanguageSwitcher language={language} onToggle={toggleLanguage} />
-        </div>
-        
-        <div className="absolute inset-0 opacity-10">
-          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <pattern id="moroccan-pattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-              <circle cx="10" cy="10" r="1.5" fill="currentColor" />
-              <path d="M0 10 L10 0 L20 10 L10 20 Z" fill="none" stroke="currentColor" strokeWidth="0.3" />
-            </pattern>
-            <rect x="0" y="0" width="100" height="100" fill="url(#moroccan-pattern)" className="text-primary-foreground" />
-          </svg>
-        </div>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center text-primary-foreground">
-            <h1 className="heading-display text-3xl md:text-4xl mb-2">{t('app_name')}</h1>
-            <p className="text-primary-foreground/80">{t('welcome_title')}</p>
-          </div>
-        </div>
-        <div className="h-48" />
+      {/* Language switcher - top right */}
+      <div className="absolute top-4 right-4 z-20">
+        <LanguageSwitcher language={language} onToggle={toggleLanguage} />
       </div>
 
-      {/* Content */}
-      <div className="container max-w-lg mx-auto px-4 -mt-16 relative z-10 pb-12 flex-1">
+      {/* Main content */}
+      <main className="flex-1 container max-w-lg mx-auto px-4 py-12">
+        {/* Logo / Wordmark */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-primary tracking-tight">
+            {t('app_name')}
+          </h1>
+        </div>
+
+        {/* Introductory text */}
+        {step === 'entry' && (
+          <div className="mb-8 text-center space-y-3 text-muted-foreground">
+            <p>{t('intro_line_1')}</p>
+            <p>{t('intro_line_2')}</p>
+            <p className="text-foreground font-medium">{t('intro_line_3')}</p>
+          </div>
+        )}
+
+        {/* Form / Steps */}
         {step === 'entry' && (
           <ReservationEntry
             onReservationFound={handleReservationFound}
@@ -95,10 +92,10 @@ export default function Index() {
         {step === 'confirmation' && (
           <ConfirmationScreen />
         )}
-      </div>
+      </main>
 
       {/* Footer with discreet staff access */}
-      <footer className="border-t border-border py-6 mt-auto">
+      <footer className="border-t border-border py-6">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} {t('app_name')}</p>
           <Link 

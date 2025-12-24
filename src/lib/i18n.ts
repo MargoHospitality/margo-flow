@@ -14,6 +14,11 @@ export const translations = {
     back: 'Back',
     next: 'Next',
     
+    // Landing page intro
+    intro_line_1: 'MargoFlow is the system used by the property where you booked your stay.',
+    intro_line_2: 'Your property is a MargoFlow partner and uses this platform to manage and organize arrival transfers for its guests, ensuring a smooth and hassle-free experience.',
+    intro_line_3: 'Please enter the information below, and we will take care of the rest.',
+    
     // Guest flow
     welcome_title: 'Arrival Transport',
     welcome_subtitle: 'Book your comfortable transfer to the riad',
@@ -107,6 +112,11 @@ export const translations = {
     save: 'Enregistrer',
     back: 'Retour',
     next: 'Suivant',
+    
+    // Landing page intro
+    intro_line_1: 'MargoFlow est le système utilisé par l\'établissement où vous avez réservé votre séjour.',
+    intro_line_2: 'Votre propriété est partenaire de MargoFlow et utilise cette plateforme pour gérer et organiser les transferts d\'arrivée de ses clients, garantissant une expérience fluide et sans tracas.',
+    intro_line_3: 'Veuillez entrer les informations ci-dessous, et nous nous occuperons du reste.',
     
     // Guest flow
     welcome_title: 'Transport à l\'arrivée',
