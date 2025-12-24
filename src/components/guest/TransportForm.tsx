@@ -2,12 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/hooks/useLanguage';
-import { Loader2, AlertTriangle, Car, Check, ArrowLeft } from 'lucide-react';
+import { Loader2, AlertTriangle, Car, Check, ArrowLeft, Clock, Users, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, addDays, isToday, parseISO } from 'date-fns';
 
@@ -75,7 +73,6 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
 
   async function fetchTransportOffers() {
     try {
-      // Get riad-specific offers with overrides
       const { data: riadOffers, error: riadError } = await supabase
         .from('riad_transport_offers')
         .select(`
@@ -105,7 +102,6 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
 
       if (riadError) throw riadError;
 
-      // If no riad-specific offers, get all default offers
       if (!riadOffers || riadOffers.length === 0) {
         const { data: defaultOffers, error: defaultError } = await supabase
           .from('transport_offers')
@@ -193,7 +189,6 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
       return;
     }
 
-    // Validate required dynamic fields
     for (const field of selectedOffer.fields_schema) {
       if (field.required && !dynamicFields[field.key]?.trim()) {
         toast.error(`${language === 'fr' ? field.label_fr : field.label} ${t('required_field')}`);
@@ -233,181 +228,207 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex items-center justify-center py-16">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-slide-up">
-      {/* Guest Info Card */}
-      <Card className="card-elevated">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-medium flex items-center gap-2">
-            <Check className="h-5 w-5 text-teal" />
-            {t('guest_info')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          <p><strong>{reservation.guest_first_name} {reservation.guest_last_name}</strong></p>
-          <p>{reservation.riad_name} · {format(checkInDate, 'PPP')}</p>
-        </CardContent>
-      </Card>
+    <div className="space-y-4 animate-fade-up">
+      {/* Guest Info Summary */}
+      <div className="card-elevated p-5">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-full bg-status-confirmed/10 flex items-center justify-center flex-shrink-0">
+            <Check className="h-5 w-5 text-status-confirmed" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-foreground truncate">
+              {reservation.guest_first_name} {reservation.guest_last_name}
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {reservation.riad_name}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {format(checkInDate, 'PPP')}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Late Booking Warning */}
       {isLateBooking && (
-        <Alert className="border-amber bg-amber-light/10">
-          <AlertTriangle className="h-4 w-4 text-amber" />
-          <AlertTitle className="text-amber">{t('late_booking_warning')}</AlertTitle>
-          <AlertDescription>
-            {riadWhatsapp && (
-              <a
-                href={`https://wa.me/${riadWhatsapp.replace(/\D/g, '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-primary hover:underline mt-2"
-              >
-                {t('contact_whatsapp')}
-              </a>
-            )}
-          </AlertDescription>
-        </Alert>
+        <div className="rounded-2xl bg-status-pending/10 border border-status-pending/20 p-4">
+          <div className="flex gap-3">
+            <AlertTriangle className="h-5 w-5 text-status-pending flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-status-pending-foreground">{t('late_booking_warning')}</p>
+              {riadWhatsapp && (
+                <a
+                  href={`https://wa.me/${riadWhatsapp.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-primary hover:underline mt-2 text-sm font-medium"
+                >
+                  {t('contact_whatsapp')}
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Transport Form */}
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle className="heading-display text-xl">{t('transport_details')}</CardTitle>
-          <CardDescription>{t('select_transport_type')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Transport Type */}
-            <div className="space-y-2">
-              <Label className="font-medium">{t('select_transport_type')}</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {offers.map(offer => (
-                  <button
-                    key={offer.id}
-                    type="button"
-                    onClick={() => setSelectedOfferId(offer.id)}
-                    className={`p-4 rounded-lg border-2 text-left transition-all ${
-                      selectedOfferId === offer.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
+      <div className="card-elevated p-6 md:p-8">
+        <h2 className="font-serif text-xl md:text-2xl text-foreground mb-6">
+          {t('transport_details')}
+        </h2>
+        
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Transport Type Selection */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium text-foreground">{t('select_transport_type')}</Label>
+            <div className="grid grid-cols-1 gap-3">
+              {offers.map(offer => (
+                <button
+                  key={offer.id}
+                  type="button"
+                  onClick={() => setSelectedOfferId(offer.id)}
+                  className={`p-4 rounded-xl border-2 text-left transition-all active:scale-[0.98] ${
+                    selectedOfferId === offer.id
+                      ? 'border-primary bg-accent/50'
+                      : 'border-border hover:border-primary/50 bg-background'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Car className={`h-5 w-5 ${selectedOfferId === offer.id ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <span className="font-medium">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        selectedOfferId === offer.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      }`}>
+                        <Car className="h-5 w-5" />
+                      </div>
+                      <span className="font-medium text-foreground">
                         {language === 'fr' && offer.name_fr ? offer.name_fr : offer.name}
                       </span>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      €{offer.day_price} - €{offer.night_price}
-                    </p>
-                  </button>
-                ))}
-              </div>
+                    <span className="text-sm text-muted-foreground">
+                      €{offer.day_price}
+                    </span>
+                  </div>
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* Transport Date */}
+          {/* Date and Time Row */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="font-medium">{t('transport_date')}</Label>
+              <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                {t('transport_date')}
+              </Label>
               <Select value={transportDate} onValueChange={setTransportDate}>
-                <SelectTrigger className="input-warm">
+                <SelectTrigger className="h-14 rounded-xl border-2 text-base">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {allowedDates.map(date => (
                     <SelectItem key={date} value={date}>
-                      {format(parseISO(date), 'PPP')}
+                      {format(parseISO(date), 'MMM d')}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Transport Time */}
+            
             <div className="space-y-2">
-              <Label htmlFor="transportTime" className="font-medium">{t('transport_time')}</Label>
+              <Label htmlFor="transportTime" className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                {t('transport_time')}
+              </Label>
               <Input
                 id="transportTime"
                 type="time"
                 value={transportTime}
                 onChange={(e) => setTransportTime(e.target.value)}
-                className="input-warm"
+                className="input-mobile"
                 required
               />
             </div>
+          </div>
 
-            {/* Passengers */}
-            <div className="space-y-2">
-              <Label htmlFor="pax" className="font-medium">{t('passengers')}</Label>
+          {/* Passengers */}
+          <div className="space-y-2">
+            <Label htmlFor="pax" className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              {t('passengers')}
+            </Label>
+            <Input
+              id="pax"
+              type="number"
+              min={1}
+              max={10}
+              value={pax}
+              onChange={(e) => setPax(Math.max(1, parseInt(e.target.value) || 1))}
+              className="input-mobile"
+              required
+            />
+          </div>
+
+          {/* Dynamic Fields */}
+          {selectedOffer?.fields_schema.map(field => (
+            <div key={field.key} className="space-y-2">
+              <Label htmlFor={field.key} className="text-sm font-medium text-foreground">
+                {language === 'fr' ? field.label_fr : field.label}
+                {field.required && <span className="text-destructive ml-1">*</span>}
+              </Label>
               <Input
-                id="pax"
-                type="number"
-                min={1}
-                max={10}
-                value={pax}
-                onChange={(e) => setPax(Math.max(1, parseInt(e.target.value) || 1))}
-                className="input-warm"
-                required
+                id={field.key}
+                type={field.type}
+                value={dynamicFields[field.key] || ''}
+                onChange={(e) => handleDynamicFieldChange(field.key, e.target.value)}
+                className="input-mobile"
+                required={field.required}
               />
             </div>
+          ))}
 
-            {/* Dynamic Fields */}
-            {selectedOffer?.fields_schema.map(field => (
-              <div key={field.key} className="space-y-2">
-                <Label htmlFor={field.key} className="font-medium">
-                  {language === 'fr' ? field.label_fr : field.label}
-                  {field.required && <span className="text-destructive ml-1">*</span>}
-                </Label>
-                <Input
-                  id={field.key}
-                  type={field.type}
-                  value={dynamicFields[field.key] || ''}
-                  onChange={(e) => handleDynamicFieldChange(field.key, e.target.value)}
-                  className="input-warm"
-                  required={field.required}
-                />
+          {/* Price Summary */}
+          {selectedOffer && (
+            <div className="p-5 rounded-2xl bg-accent/50 border border-border">
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-foreground">{t('total_price')}</span>
+                <span className="text-3xl font-serif font-semibold text-primary">
+                  €{computedPrice.toFixed(0)}
+                </span>
               </div>
-            ))}
-
-            {/* Price Summary */}
-            {selectedOffer && (
-              <div className="p-4 rounded-lg bg-secondary/50 border border-border">
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">{t('total_price')}</span>
-                  <span className="text-2xl font-display font-bold text-primary">
-                    €{computedPrice.toFixed(2)}
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {selectedOffer.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
-                </p>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={onBack} className="flex-1">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                {t('back')}
-              </Button>
-              <Button
-                type="submit"
-                variant="default"
-                className="flex-1"
-                disabled={isSubmitting || !selectedOfferId}
-              >
-                {isSubmitting ? <Loader2 className="animate-spin" /> : t('submit')}
-              </Button>
+              <p className="text-sm text-muted-foreground mt-1">
+                {selectedOffer.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
+              </p>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onBack} 
+              className="flex-1 h-14 rounded-xl text-base"
+            >
+              <ArrowLeft className="mr-2 h-5 w-5" />
+              {t('back')}
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1 h-14 rounded-xl text-base font-medium"
+              disabled={isSubmitting || !selectedOfferId}
+            >
+              {isSubmitting ? <Loader2 className="animate-spin h-5 w-5" /> : t('submit')}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
