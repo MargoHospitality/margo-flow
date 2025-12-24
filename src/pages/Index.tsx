@@ -58,7 +58,7 @@ export default function Index() {
       {/* Main content */}
       <main className="flex-1 container max-w-lg mx-auto px-4 py-12">
         {/* Logo */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-4">
           <img 
             src={margoflowLogo} 
             alt="MargoFlow" 
