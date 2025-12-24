@@ -62,7 +62,7 @@ export default function Index() {
           <img 
             src={margoflowLogo} 
             alt="MargoFlow" 
-            className="h-16 md:h-20 mx-auto"
+            className="w-2/3 max-w-xs md:max-w-sm mx-auto"
           />
         </div>
 
