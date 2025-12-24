@@ -2,10 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/hooks/useLanguage';
-import { Loader2, Search, Building, X } from 'lucide-react';
+import { Loader2, Search, Building, X, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Riad {
@@ -51,7 +50,6 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
   }, []);
 
   useEffect(() => {
-    // Handle click outside to close suggestions
     const handleClickOutside = (event: MouseEvent) => {
       if (
         suggestionsRef.current &&
@@ -68,7 +66,6 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
   }, []);
 
   useEffect(() => {
-    // Filter riads based on search
     if (riadSearch.trim() === '') {
       setFilteredRiads([]);
       return;
@@ -82,7 +79,6 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
   }, [riadSearch, riads]);
 
   useEffect(() => {
-    // Handle preselected riad from URL
     if (preselectedRiadId && riads.length > 0) {
       const riad = riads.find(r => r.id === preselectedRiadId);
       if (riad) {
@@ -130,7 +126,6 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation: riad must be selected
     if (!selectedRiad) {
       toast.error(t('select_riad'));
       return;
@@ -144,7 +139,6 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
     setIsLoading(true);
 
     try {
-      // Query reservation with riad validation
       const { data, error } = await supabase
         .from('reservations')
         .select(`
@@ -168,13 +162,11 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
         return;
       }
 
-      // Check if reservation is still valid
       if (data.status === 'canceled' || data.status === 'no_show') {
         toast.error(t('reservation_invalid'));
         return;
       }
 
-      // Check if transport request already exists
       const { data: existingRequest } = await supabase
         .from('transport_requests')
         .select('id, status')
@@ -205,135 +197,130 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
 
   if (riadsLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex items-center justify-center py-16">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <Card className="card-elevated animate-fade-in">
-      <CardHeader className="text-center">
-        <CardTitle className="heading-display text-2xl">{t('reservation_lookup')}</CardTitle>
-        <CardDescription className="text-body">
-          {t('welcome_subtitle')}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Riad Name - Autocomplete */}
-          <div className="space-y-2">
-            <Label htmlFor="riadName" className="font-medium">
-              {t('riad_name_label')}
-            </Label>
+    <div className="card-elevated p-6 md:p-8">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Riad Name - Autocomplete */}
+        <div className="space-y-2">
+          <Label htmlFor="riadName" className="text-sm font-medium text-foreground">
+            {t('riad_name_label')}
+          </Label>
+          <div className="relative">
             <div className="relative">
-              <div className="relative">
-                <Building className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  ref={inputRef}
-                  id="riadName"
-                  type="text"
-                  value={riadSearch}
-                  onChange={(e) => handleRiadInputChange(e.target.value)}
-                  onFocus={() => riadSearch.trim() && setShowSuggestions(true)}
-                  placeholder={t('riad_name_placeholder')}
-                  className="input-warm pl-10 pr-10"
-                  autoComplete="off"
-                  required
-                />
-                {selectedRiad && (
-                  <button
-                    type="button"
-                    onClick={handleClearRiad}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-              
-              {/* Suggestions dropdown */}
-              {showSuggestions && filteredRiads.length > 0 && (
-                <div
-                  ref={suggestionsRef}
-                  className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto"
+              <Building className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                ref={inputRef}
+                id="riadName"
+                type="text"
+                value={riadSearch}
+                onChange={(e) => handleRiadInputChange(e.target.value)}
+                onFocus={() => riadSearch.trim() && setShowSuggestions(true)}
+                placeholder={t('riad_name_placeholder')}
+                className="input-mobile pl-12 pr-12"
+                autoComplete="off"
+                required
+              />
+              {selectedRiad && (
+                <button
+                  type="button"
+                  onClick={handleClearRiad}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Clear selection"
                 >
-                  {filteredRiads.map(riad => (
-                    <button
-                      key={riad.id}
-                      type="button"
-                      onClick={() => handleRiadSelect(riad)}
-                      className="w-full px-4 py-3 text-left hover:bg-accent flex items-center gap-3 transition-colors"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Building className="h-4 w-4 text-primary" />
-                      </div>
-                      <span className="font-medium">{riad.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              
-              {/* No results message */}
-              {showSuggestions && riadSearch.trim() && filteredRiads.length === 0 && (
-                <div
-                  ref={suggestionsRef}
-                  className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg p-4 text-center text-muted-foreground"
-                >
-                  {t('no_riads_found')}
-                </div>
+                  <X className="h-5 w-5" />
+                </button>
               )}
             </div>
-          </div>
-
-          {/* Reservation Number */}
-          <div className="space-y-2">
-            <Label htmlFor="reservationId" className="font-medium">
-              {t('reservation_id_label')}
-            </Label>
-            <Input
-              id="reservationId"
-              type="text"
-              value={reservationId}
-              onChange={(e) => setReservationId(e.target.value)}
-              placeholder={t('reservation_id_placeholder')}
-              className="input-warm"
-              required
-            />
-          </div>
-
-          {/* Last Name */}
-          <div className="space-y-2">
-            <Label htmlFor="lastName" className="font-medium">
-              {t('last_name_label')}
-            </Label>
-            <Input
-              id="lastName"
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder={t('last_name_placeholder')}
-              className="input-warm"
-              required
-            />
-          </div>
-
-          <Button 
-            type="submit" 
-            className="w-full" 
-            size="lg"
-            variant="default"
-            disabled={isLoading || !selectedRiad}
-          >
-            {isLoading ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <Search className="mr-2" />
+            
+            {/* Suggestions dropdown */}
+            {showSuggestions && filteredRiads.length > 0 && (
+              <div
+                ref={suggestionsRef}
+                className="absolute z-50 w-full mt-2 bg-card border border-border rounded-2xl shadow-medium overflow-hidden"
+              >
+                {filteredRiads.map(riad => (
+                  <button
+                    key={riad.id}
+                    type="button"
+                    onClick={() => handleRiadSelect(riad)}
+                    className="w-full px-4 py-4 text-left hover:bg-accent/50 flex items-center justify-between transition-colors active:bg-accent"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Building className="h-5 w-5 text-primary" />
+                      </div>
+                      <span className="font-medium text-foreground">{riad.name}</span>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
             )}
-            {t('find_reservation')}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+            
+            {/* No results message */}
+            {showSuggestions && riadSearch.trim() && filteredRiads.length === 0 && (
+              <div
+                ref={suggestionsRef}
+                className="absolute z-50 w-full mt-2 bg-card border border-border rounded-2xl shadow-soft p-4 text-center text-muted-foreground"
+              >
+                {t('no_riads_found')}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Reservation Number */}
+        <div className="space-y-2">
+          <Label htmlFor="reservationId" className="text-sm font-medium text-foreground">
+            {t('reservation_id_label')}
+          </Label>
+          <Input
+            id="reservationId"
+            type="text"
+            value={reservationId}
+            onChange={(e) => setReservationId(e.target.value)}
+            placeholder={t('reservation_id_placeholder')}
+            className="input-mobile"
+            required
+          />
+        </div>
+
+        {/* Last Name */}
+        <div className="space-y-2">
+          <Label htmlFor="lastName" className="text-sm font-medium text-foreground">
+            {t('last_name_label')}
+          </Label>
+          <Input
+            id="lastName"
+            type="text"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder={t('last_name_placeholder')}
+            className="input-mobile"
+            required
+          />
+        </div>
+
+        <Button 
+          type="submit" 
+          className="w-full h-14 text-base font-medium rounded-xl mt-2" 
+          size="lg"
+          disabled={isLoading || !selectedRiad}
+        >
+          {isLoading ? (
+            <Loader2 className="animate-spin mr-2 h-5 w-5" />
+          ) : (
+            <Search className="mr-2 h-5 w-5" />
+          )}
+          {t('find_reservation')}
+        </Button>
+      </form>
+    </div>
   );
 }

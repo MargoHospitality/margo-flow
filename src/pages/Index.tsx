@@ -50,60 +50,66 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Language switcher - top right */}
-      <div className="absolute top-4 right-4 z-20">
-        <LanguageSwitcher language={language} onToggle={toggleLanguage} />
-      </div>
-
-      {/* Main content */}
-      <main className="flex-1 container max-w-lg mx-auto px-4 py-12">
-        {/* Logo */}
-        <div className="text-center mb-4">
+      {/* Header with language switcher */}
+      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
+        <div className="container max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="w-10" /> {/* Spacer for centering */}
           <img 
             src={margoflowLogo} 
             alt="MargoFlow" 
-            className="w-2/3 max-w-xs md:max-w-sm mx-auto"
+            className="h-8 md:h-10 object-contain"
           />
+          <LanguageSwitcher language={language} onToggle={toggleLanguage} />
         </div>
+      </header>
 
-        {/* Introductory text */}
+      {/* Main content */}
+      <main className="flex-1 container max-w-lg mx-auto px-4 py-6 md:py-10">
+        {/* Hero section - only on entry step */}
         {step === 'entry' && (
-          <div className="mb-8 text-center space-y-3 text-muted-foreground">
-            <p>{t('intro_line_1')}</p>
-            <p>{t('intro_line_2')}</p>
-            <p className="text-foreground font-medium">{t('intro_line_3')}</p>
+          <div className="text-center mb-8 animate-fade-up">
+            <h1 className="font-serif text-2xl md:text-3xl text-foreground mb-3">
+              {t('intro_line_3')}
+            </h1>
+            <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-sm mx-auto">
+              {t('intro_line_1')}
+            </p>
           </div>
         )}
 
         {/* Form / Steps */}
-        {step === 'entry' && (
-          <ReservationEntry
-            onReservationFound={handleReservationFound}
-            preselectedRiadId={preselectedRiadId}
-          />
-        )}
-        
-        {step === 'form' && reservation && (
-          <TransportForm
-            reservation={reservation}
-            riadWhatsapp={riadWhatsapp}
-            onBack={handleBack}
-            onSuccess={handleSuccess}
-          />
-        )}
-        
-        {step === 'confirmation' && (
-          <ConfirmationScreen />
-        )}
+        <div className="animate-fade-up delay-100">
+          {step === 'entry' && (
+            <ReservationEntry
+              onReservationFound={handleReservationFound}
+              preselectedRiadId={preselectedRiadId}
+            />
+          )}
+          
+          {step === 'form' && reservation && (
+            <TransportForm
+              reservation={reservation}
+              riadWhatsapp={riadWhatsapp}
+              onBack={handleBack}
+              onSuccess={handleSuccess}
+            />
+          )}
+          
+          {step === 'confirmation' && (
+            <ConfirmationScreen />
+          )}
+        </div>
       </main>
 
-      {/* Footer with discreet staff access */}
-      <footer className="border-t border-border py-6">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} {t('app_name')}</p>
+      {/* Footer */}
+      <footer className="border-t border-border/50 py-6 safe-bottom">
+        <div className="container mx-auto px-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            &copy; {new Date().getFullYear()} {t('app_name')}
+          </p>
           <Link 
             to="/auth" 
-            className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors mt-2 inline-block"
+            className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-2 inline-block"
           >
             Staff access
           </Link>
