@@ -18,5 +18,15 @@ export function useLanguage() {
     [language]
   );
 
-  return { language, t };
+  const toggleLanguage = useCallback(() => {
+    const newLang: Language = language === 'en' ? 'fr' : 'en';
+    setLanguage(newLang);
+    
+    // Update URL without reloading
+    const url = new URL(window.location.href);
+    url.searchParams.set('lang', newLang);
+    window.history.replaceState({}, '', url.toString());
+  }, [language]);
+
+  return { language, t, toggleLanguage };
 }
