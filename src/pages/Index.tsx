@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
-import { RiadSelector } from '@/components/guest/RiadSelector';
-import { ReservationLookup } from '@/components/guest/ReservationLookup';
+import { ReservationEntry } from '@/components/guest/ReservationEntry';
 import { TransportForm } from '@/components/guest/TransportForm';
 import { ConfirmationScreen } from '@/components/guest/ConfirmationScreen';
-import { supabase } from '@/integrations/supabase/client';
 
-type Step = 'riad' | 'lookup' | 'form' | 'confirmation';
+type Step = 'entry' | 'form' | 'confirmation';
 
 interface ReservationData {
   reservation_id: string;
@@ -20,44 +18,28 @@ interface ReservationData {
 
 export default function Index() {
   const { t } = useLanguage();
-  const [step, setStep] = useState<Step>('riad');
-  const [selectedRiadId, setSelectedRiadId] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>('entry');
   const [riadWhatsapp, setRiadWhatsapp] = useState<string | undefined>();
   const [reservation, setReservation] = useState<ReservationData | null>(null);
+  const [preselectedRiadId, setPreselectedRiadId] = useState<string | undefined>();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const riadId = params.get('riad');
     if (riadId) {
-      handleRiadSelect(riadId);
+      setPreselectedRiadId(riadId);
     }
   }, []);
 
-  const handleRiadSelect = async (riadId: string, whatsapp?: string) => {
-    setSelectedRiadId(riadId);
-    
-    if (!whatsapp) {
-      const { data } = await supabase
-        .from('riads')
-        .select('manager_whatsapp')
-        .eq('id', riadId)
-        .single();
-      setRiadWhatsapp(data?.manager_whatsapp || undefined);
-    } else {
-      setRiadWhatsapp(whatsapp);
-    }
-    
-    setStep('lookup');
-  };
-
-  const handleReservationFound = (res: ReservationData) => {
+  const handleReservationFound = (res: ReservationData, whatsapp?: string) => {
     setReservation(res);
+    setRiadWhatsapp(whatsapp);
     setStep('form');
   };
 
   const handleBack = () => {
     setReservation(null);
-    setStep('lookup');
+    setStep('entry');
   };
 
   const handleSuccess = () => {
@@ -88,14 +70,10 @@ export default function Index() {
 
       {/* Content */}
       <div className="container max-w-lg mx-auto px-4 -mt-16 relative z-10 pb-12 flex-1">
-        {step === 'riad' && (
-          <RiadSelector onSelect={handleRiadSelect} />
-        )}
-        
-        {step === 'lookup' && selectedRiadId && (
-          <ReservationLookup
-            riadId={selectedRiadId}
+        {step === 'entry' && (
+          <ReservationEntry
             onReservationFound={handleReservationFound}
+            preselectedRiadId={preselectedRiadId}
           />
         )}
         
