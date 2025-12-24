@@ -1,14 +1,72 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/hooks/useLanguage';
-import { Car, Building, ArrowRight } from 'lucide-react';
+import { RiadSelector } from '@/components/guest/RiadSelector';
+import { ReservationLookup } from '@/components/guest/ReservationLookup';
+import { TransportForm } from '@/components/guest/TransportForm';
+import { ConfirmationScreen } from '@/components/guest/ConfirmationScreen';
+import { supabase } from '@/integrations/supabase/client';
+
+type Step = 'riad' | 'lookup' | 'form' | 'confirmation';
+
+interface ReservationData {
+  reservation_id: string;
+  guest_first_name: string | null;
+  guest_last_name: string;
+  check_in_date: string;
+  riad_id: string;
+  riad_name: string;
+}
 
 export default function Index() {
   const { t } = useLanguage();
+  const [step, setStep] = useState<Step>('riad');
+  const [selectedRiadId, setSelectedRiadId] = useState<string | null>(null);
+  const [riadWhatsapp, setRiadWhatsapp] = useState<string | undefined>();
+  const [reservation, setReservation] = useState<ReservationData | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const riadId = params.get('riad');
+    if (riadId) {
+      handleRiadSelect(riadId);
+    }
+  }, []);
+
+  const handleRiadSelect = async (riadId: string, whatsapp?: string) => {
+    setSelectedRiadId(riadId);
+    
+    if (!whatsapp) {
+      const { data } = await supabase
+        .from('riads')
+        .select('manager_whatsapp')
+        .eq('id', riadId)
+        .single();
+      setRiadWhatsapp(data?.manager_whatsapp || undefined);
+    } else {
+      setRiadWhatsapp(whatsapp);
+    }
+    
+    setStep('lookup');
+  };
+
+  const handleReservationFound = (res: ReservationData) => {
+    setReservation(res);
+    setStep('form');
+  };
+
+  const handleBack = () => {
+    setReservation(null);
+    setStep('lookup');
+  };
+
+  const handleSuccess = () => {
+    setStep('confirmation');
+  };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Hero */}
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
       <div className="gradient-hero relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -19,60 +77,52 @@ export default function Index() {
             <rect x="0" y="0" width="100" height="100" fill="url(#moroccan-pattern)" className="text-primary-foreground" />
           </svg>
         </div>
-        
-        <div className="container mx-auto px-4 py-24 md:py-32 relative z-10">
-          <div className="max-w-2xl mx-auto text-center text-primary-foreground">
-            <h1 className="heading-display text-4xl md:text-5xl lg:text-6xl mb-6 animate-fade-in">
-              {t('app_name')}
-            </h1>
-            <p className="text-lg md:text-xl text-primary-foreground/80 mb-10 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              {t('welcome_subtitle')}
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up" style={{ animationDelay: '0.2s' }}>
-              <Button asChild size="xl" variant="sand">
-                <Link to="/guest">
-                  <Car className="mr-2 h-5 w-5" />
-                  {t('welcome_title')}
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
-            </div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center text-primary-foreground">
+            <h1 className="heading-display text-3xl md:text-4xl mb-2">{t('app_name')}</h1>
+            <p className="text-primary-foreground/80">{t('welcome_title')}</p>
           </div>
         </div>
+        <div className="h-48" />
       </div>
 
-      {/* Features */}
-      <div className="container mx-auto px-4 py-16">
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          <Link 
-            to="/guest" 
-            className="group card-elevated p-8 card-hover text-center"
-          >
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/20 transition-colors">
-              <Car className="h-8 w-8 text-primary" />
-            </div>
-            <h2 className="heading-display text-xl mb-2">{t('welcome_title')}</h2>
-            <p className="text-muted-foreground text-sm">{t('welcome_subtitle')}</p>
-          </Link>
+      {/* Content */}
+      <div className="container max-w-lg mx-auto px-4 -mt-16 relative z-10 pb-12 flex-1">
+        {step === 'riad' && (
+          <RiadSelector onSelect={handleRiadSelect} />
+        )}
+        
+        {step === 'lookup' && selectedRiadId && (
+          <ReservationLookup
+            riadId={selectedRiadId}
+            onReservationFound={handleReservationFound}
+          />
+        )}
+        
+        {step === 'form' && reservation && (
+          <TransportForm
+            reservation={reservation}
+            riadWhatsapp={riadWhatsapp}
+            onBack={handleBack}
+            onSuccess={handleSuccess}
+          />
+        )}
+        
+        {step === 'confirmation' && (
+          <ConfirmationScreen />
+        )}
+      </div>
 
+      {/* Footer with discreet staff access */}
+      <footer className="border-t border-border py-6 mt-auto">
+        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
+          <p>&copy; {new Date().getFullYear()} {t('app_name')}</p>
           <Link 
             to="/auth" 
-            className="group card-elevated p-8 card-hover text-center"
+            className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors mt-2 inline-block"
           >
-            <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4 group-hover:bg-accent/20 transition-colors">
-              <Building className="h-8 w-8 text-accent" />
-            </div>
-            <h2 className="heading-display text-xl mb-2">{t('dashboard')}</h2>
-            <p className="text-muted-foreground text-sm">Manager &amp; Admin Access</p>
+            Staff access
           </Link>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <footer className="border-t border-border py-8">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} {t('app_name')}. All rights reserved.</p>
         </div>
       </footer>
     </div>
