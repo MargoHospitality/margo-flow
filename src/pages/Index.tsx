@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { User } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { ReservationEntry } from '@/components/guest/ReservationEntry';
 import { TransportForm } from '@/components/guest/TransportForm';
@@ -50,10 +51,16 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header with language switcher */}
+      {/* Header with language switcher and login */}
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
         <div className="container max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="w-10" /> {/* Spacer for centering */}
+          <Link 
+            to="/auth" 
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+            aria-label={t('login')}
+          >
+            <User className="h-5 w-5 text-muted-foreground" />
+          </Link>
           <img 
             src={margoflowLogo} 
             alt="MargoFlow" 
@@ -105,14 +112,16 @@ export default function Index() {
       <footer className="border-t border-border/50 py-6 safe-bottom">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} {t('app_name')}
+            {t('footer_copyright')}{' '}
+            <a 
+              href="https://www.margo-hospitality.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              {t('footer_margo')}
+            </a>
           </p>
-          <Link 
-            to="/auth" 
-            className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-2 inline-block"
-          >
-            Staff access
-          </Link>
         </div>
       </footer>
     </div>
