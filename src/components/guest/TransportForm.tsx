@@ -398,7 +398,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
               </Button>
               <Button
                 type="submit"
-                variant="warm"
+                variant="default"
                 className="flex-1"
                 disabled={isSubmitting || !selectedOfferId}
               >

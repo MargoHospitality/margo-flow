@@ -210,7 +210,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate }: RequestCardProp
           {request.status === 'pending' && (
             <div className="flex gap-2 pt-2">
               <Button 
-                variant="teal" 
+                variant="default" 
                 size="sm" 
                 className="flex-1"
                 onClick={handleConfirm}

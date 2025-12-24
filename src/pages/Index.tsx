@@ -58,7 +58,7 @@ export default function Index() {
       <main className="flex-1 container max-w-lg mx-auto px-4 py-12">
         {/* Logo / Wordmark */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-primary tracking-tight">
+          <h1 className="text-3xl md:text-4xl text-primary">
             {t('app_name')}
           </h1>
         </div>

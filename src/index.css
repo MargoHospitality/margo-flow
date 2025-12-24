@@ -2,118 +2,102 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    /* Warm Moroccan-inspired palette */
-    --background: 40 33% 98%;
-    --foreground: 20 25% 15%;
+    /* Margo Hospitality Color Palette */
+    /* Primary: Margo Blue #048E9A */
+    --primary: 184 95% 31%;
+    --primary-foreground: 0 0% 100%;
 
-    --card: 40 30% 99%;
-    --card-foreground: 20 25% 15%;
+    /* Backgrounds */
+    --background: 0 0% 100%;
+    --foreground: 24 67% 3%;
 
-    --popover: 40 30% 99%;
-    --popover-foreground: 20 25% 15%;
+    /* Cards use Sand #CCC1AE */
+    --card: 33 23% 74%;
+    --card-foreground: 24 67% 3%;
 
-    /* Terracotta primary */
-    --primary: 16 65% 45%;
-    --primary-foreground: 40 33% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 67% 3%;
 
-    /* Sand secondary */
-    --secondary: 35 30% 92%;
-    --secondary-foreground: 20 25% 25%;
+    /* Secondary uses Sand */
+    --secondary: 33 23% 74%;
+    --secondary-foreground: 24 67% 3%;
 
-    /* Warm muted tones */
-    --muted: 35 20% 94%;
-    --muted-foreground: 20 15% 45%;
+    /* Muted uses Light Grey #C6C6C6 */
+    --muted: 0 0% 78%;
+    --muted-foreground: 0 0% 40%;
 
-    /* Deep teal accent */
-    --accent: 175 45% 30%;
-    --accent-foreground: 40 33% 98%;
+    /* Accent same as primary */
+    --accent: 184 95% 31%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
-    --destructive-foreground: 40 33% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 35 25% 88%;
-    --input: 35 25% 88%;
-    --ring: 16 65% 45%;
+    /* Borders use Light Grey #C6C6C6 */
+    --border: 0 0% 78%;
+    --input: 0 0% 78%;
+    --ring: 184 95% 31%;
 
-    --radius: 0.625rem;
+    --radius: 0.5rem;
 
-    /* Custom colors */
-    --terracotta: 16 65% 45%;
-    --terracotta-light: 16 55% 60%;
-    --terracotta-dark: 16 70% 35%;
-    --sand: 40 35% 90%;
-    --sand-dark: 35 30% 80%;
-    --teal: 175 45% 30%;
-    --teal-light: 175 40% 45%;
-    --amber: 35 85% 55%;
-    --amber-light: 40 80% 70%;
-    --cream: 40 40% 96%;
-    --warm-gray: 20 10% 50%;
-
-    /* Gradients */
-    --gradient-warm: linear-gradient(135deg, hsl(16 65% 45%) 0%, hsl(35 85% 55%) 100%);
-    --gradient-sand: linear-gradient(180deg, hsl(40 33% 98%) 0%, hsl(35 30% 92%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(20 25% 15%) 0%, hsl(175 45% 30%) 100%);
-
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 hsl(20 25% 15% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(20 25% 15% / 0.1), 0 2px 4px -2px hsl(20 25% 15% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(20 25% 15% / 0.1), 0 4px 6px -4px hsl(20 25% 15% / 0.1);
-    --shadow-warm: 0 10px 40px -10px hsl(16 65% 45% / 0.25);
-    --shadow-glow: 0 0 30px hsl(16 55% 60% / 0.3);
+    /* Status colors */
+    --status-pending: 0 0% 78%;
+    --status-confirmed: 184 95% 31%;
+    --status-rejected: 24 67% 3%;
 
     /* Sidebar */
-    --sidebar-background: 40 30% 99%;
-    --sidebar-foreground: 20 25% 25%;
-    --sidebar-primary: 16 65% 45%;
-    --sidebar-primary-foreground: 40 33% 98%;
-    --sidebar-accent: 35 30% 94%;
-    --sidebar-accent-foreground: 20 25% 25%;
-    --sidebar-border: 35 25% 88%;
-    --sidebar-ring: 16 65% 45%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 24 67% 3%;
+    --sidebar-primary: 184 95% 31%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 33 23% 74%;
+    --sidebar-accent-foreground: 24 67% 3%;
+    --sidebar-border: 0 0% 78%;
+    --sidebar-ring: 184 95% 31%;
   }
 
   .dark {
-    --background: 20 25% 10%;
-    --foreground: 40 30% 95%;
+    /* Keep same colors for dark mode - flat UI */
+    --primary: 184 95% 31%;
+    --primary-foreground: 0 0% 100%;
 
-    --card: 20 22% 14%;
-    --card-foreground: 40 30% 95%;
+    --background: 24 67% 3%;
+    --foreground: 0 0% 100%;
 
-    --popover: 20 22% 14%;
-    --popover-foreground: 40 30% 95%;
+    --card: 24 40% 10%;
+    --card-foreground: 0 0% 100%;
 
-    --primary: 16 60% 55%;
-    --primary-foreground: 20 25% 10%;
+    --popover: 24 40% 10%;
+    --popover-foreground: 0 0% 100%;
 
-    --secondary: 20 20% 20%;
-    --secondary-foreground: 40 30% 90%;
+    --secondary: 33 20% 25%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 20 18% 18%;
-    --muted-foreground: 35 15% 60%;
+    --muted: 0 0% 30%;
+    --muted-foreground: 0 0% 70%;
 
-    --accent: 175 40% 40%;
-    --accent-foreground: 40 30% 95%;
+    --accent: 184 95% 31%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 62% 45%;
-    --destructive-foreground: 40 30% 95%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 20 18% 22%;
-    --input: 20 18% 22%;
-    --ring: 16 60% 55%;
+    --border: 0 0% 30%;
+    --input: 0 0% 30%;
+    --ring: 184 95% 31%;
 
-    --sidebar-background: 20 22% 12%;
-    --sidebar-foreground: 40 30% 90%;
-    --sidebar-primary: 16 60% 55%;
-    --sidebar-primary-foreground: 20 25% 10%;
-    --sidebar-accent: 20 18% 18%;
-    --sidebar-accent-foreground: 40 30% 90%;
-    --sidebar-border: 20 18% 22%;
-    --sidebar-ring: 16 60% 55%;
+    --sidebar-background: 24 40% 8%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 184 95% 31%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 24 40% 15%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 30%;
+    --sidebar-ring: 184 95% 31%;
   }
 }
 
@@ -124,113 +108,47 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Moon', 'Arial Black', sans-serif;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.02em;
   }
 }
 
 @layer components {
   .heading-display {
-    font-family: 'Playfair Display', serif;
-    @apply font-semibold tracking-tight;
+    font-family: 'Moon', 'Arial Black', sans-serif;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.02em;
   }
 
   .text-body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     @apply font-normal leading-relaxed;
   }
 
-  .gradient-warm {
-    background: linear-gradient(135deg, hsl(var(--terracotta)) 0%, hsl(var(--amber)) 100%);
-  }
-
-  .gradient-hero {
-    background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--teal)) 100%);
-  }
-
   .card-elevated {
-    @apply bg-card rounded-xl border border-border;
-    box-shadow: var(--shadow-md);
-  }
-
-  .card-hover {
-    @apply transition-all duration-300;
-  }
-
-  .card-hover:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-2px);
-  }
-
-  .btn-primary-glow {
-    box-shadow: var(--shadow-warm);
-  }
-
-  .input-warm {
-    @apply bg-background border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200;
+    @apply bg-card rounded-lg border border-border;
   }
 
   .badge-status {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium;
   }
 
   .badge-pending {
-    @apply bg-amber-light/20 text-amber;
+    @apply bg-muted text-muted-foreground;
   }
 
   .badge-confirmed {
-    @apply bg-teal/10 text-teal;
+    @apply bg-primary text-primary-foreground;
   }
 
   .badge-rejected {
-    @apply bg-destructive/10 text-destructive;
-  }
-}
-
-@layer utilities {
-  .animate-fade-in {
-    animation: fadeIn 0.5s ease-out forwards;
-  }
-
-  .animate-slide-up {
-    animation: slideUp 0.5s ease-out forwards;
-  }
-
-  .animate-slide-in-right {
-    animation: slideInRight 0.3s ease-out forwards;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes slideInRight {
-    from {
-      opacity: 0;
-      transform: translateX(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
+    @apply bg-foreground text-background;
   }
 }
