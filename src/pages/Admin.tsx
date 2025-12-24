@@ -70,36 +70,48 @@ export default function Admin() {
     setFoundUser(null);
     
     try {
-      // Search for user by email in auth.users via RPC or direct query
-      // Since we can't query auth.users directly, we'll search user_roles and match
-      const { data: allRoles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-      
-      if (rolesError) throw rolesError;
-
-      // We need to find user by email - this requires an edge function or admin API
-      // For now, let's check if we can match by looking up user_riads
-      const { data: userData, error: userError } = await supabase.rpc('get_user_by_email', {
-        email_input: searchEmail.trim().toLowerCase()
-      });
-
-      if (userError) {
-        // Function doesn't exist yet, show helpful message
-        toast.error('User search requires backend setup');
+      // Get current session for auth header
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Not authenticated');
         return;
       }
 
-      if (!userData || userData.length === 0) {
+      // Call edge function to search user by email
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-search-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ email: searchEmail.trim().toLowerCase() })
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('Search error:', result.error);
+        toast.error(result.error || t('admin_user_not_found'));
+        return;
+      }
+
+      if (!result.user) {
         toast.error(t('admin_user_not_found'));
         return;
       }
 
-      const userId = userData[0].id;
-      const userEmail = userData[0].email;
+      const userId = result.user.id;
+      const userEmail = result.user.email;
 
       // Get user's current role
-      const roleData = allRoles?.find(r => r.user_id === userId);
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
       
       // Get user's assigned riads
       const { data: userRiads } = await supabase
