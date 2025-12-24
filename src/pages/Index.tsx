@@ -4,6 +4,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { ReservationEntry } from '@/components/guest/ReservationEntry';
 import { TransportForm } from '@/components/guest/TransportForm';
 import { ConfirmationScreen } from '@/components/guest/ConfirmationScreen';
+import { LanguageSwitcher } from '@/components/guest/LanguageSwitcher';
 
 type Step = 'entry' | 'form' | 'confirmation';
 
@@ -17,7 +18,7 @@ interface ReservationData {
 }
 
 export default function Index() {
-  const { t } = useLanguage();
+  const { t, language, toggleLanguage } = useLanguage();
   const [step, setStep] = useState<Step>('entry');
   const [riadWhatsapp, setRiadWhatsapp] = useState<string | undefined>();
   const [reservation, setReservation] = useState<ReservationData | null>(null);
@@ -50,6 +51,11 @@ export default function Index() {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <div className="gradient-hero relative overflow-hidden">
+        {/* Language switcher - top right */}
+        <div className="absolute top-4 right-4 z-20">
+          <LanguageSwitcher language={language} onToggle={toggleLanguage} />
+        </div>
+        
         <div className="absolute inset-0 opacity-10">
           <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
             <pattern id="moroccan-pattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
