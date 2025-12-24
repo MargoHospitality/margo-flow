@@ -146,7 +146,7 @@ export function ReservationLookup({ riadId, onReservationFound }: ReservationLoo
             type="submit" 
             className="w-full" 
             size="lg"
-            variant="warm"
+            variant="default"
             disabled={isLoading}
           >
             {isLoading ? (

@@ -132,7 +132,7 @@ export default function Auth() {
 
               <Button
                 type="submit"
-                variant="warm"
+                variant="default"
                 className="w-full"
                 size="lg"
                 disabled={isSubmitting}

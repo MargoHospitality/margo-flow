@@ -322,7 +322,7 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
             type="submit" 
             className="w-full" 
             size="lg"
-            variant="warm"
+            variant="default"
             disabled={isLoading || !selectedRiad}
           >
             {isLoading ? (
