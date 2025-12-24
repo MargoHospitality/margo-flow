@@ -15,9 +15,27 @@ export const translations = {
     next: 'Next',
     
     // Landing page intro
-    intro_line_1: 'MargoFlow is the system used by the property where you booked your stay.',
+    intro_line_1: 'Margo Flow helps us arrange your arrival smoothly.',
     intro_line_2: 'Your property is a MargoFlow partner and uses this platform to manage and organize arrival transfers for its guests, ensuring a smooth and hassle-free experience.',
     intro_line_3: 'Please enter the information below, and we will take care of the rest.',
+    
+    // Footer
+    footer_copyright: '© 2025 – Created with Love 💙 by',
+    footer_margo: 'Margo Hospitality',
+    
+    // Admin
+    admin_users: 'User Management',
+    admin_find_user: 'Find user by email',
+    admin_search: 'Search',
+    admin_user_not_found: 'User not found',
+    admin_assign_role: 'Assign Role',
+    admin_assign_riads: 'Assign Riads',
+    admin_save_changes: 'Save Changes',
+    admin_role_pending: 'Pending',
+    admin_role_manager: 'Manager',
+    admin_role_super_admin: 'Super Admin',
+    admin_no_access: 'You do not have access to this area.',
+    admin_pending_notice: 'Your account is pending approval. Please contact an administrator.',
     
     // Guest flow
     welcome_title: 'Arrival Transport',
@@ -114,9 +132,27 @@ export const translations = {
     next: 'Suivant',
     
     // Landing page intro
-    intro_line_1: 'MargoFlow est le système utilisé par l\'établissement où vous avez réservé votre séjour.',
+    intro_line_1: 'Margo Flow nous aide à organiser votre arrivée en douceur.',
     intro_line_2: 'Votre propriété est partenaire de MargoFlow et utilise cette plateforme pour gérer et organiser les transferts d\'arrivée de ses clients, garantissant une expérience fluide et sans tracas.',
     intro_line_3: 'Veuillez entrer les informations ci-dessous, et nous nous occuperons du reste.',
+    
+    // Footer
+    footer_copyright: '© 2025 – Créé avec Amour 💙 par',
+    footer_margo: 'Margo Hospitality',
+    
+    // Admin
+    admin_users: 'Gestion des Utilisateurs',
+    admin_find_user: 'Rechercher un utilisateur par email',
+    admin_search: 'Rechercher',
+    admin_user_not_found: 'Utilisateur non trouvé',
+    admin_assign_role: 'Attribuer le Rôle',
+    admin_assign_riads: 'Attribuer les Riads',
+    admin_save_changes: 'Enregistrer',
+    admin_role_pending: 'En attente',
+    admin_role_manager: 'Manager',
+    admin_role_super_admin: 'Super Admin',
+    admin_no_access: 'Vous n\'avez pas accès à cette zone.',
+    admin_pending_notice: 'Votre compte est en attente d\'approbation. Veuillez contacter un administrateur.',
     
     // Guest flow
     welcome_title: 'Transport à l\'arrivée',
