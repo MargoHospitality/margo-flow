@@ -194,7 +194,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate }: RequestCardProp
               {request.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
             </span>
             <span className="text-xl font-display font-bold text-primary">
-              €{Number(request.computed_price).toFixed(2)}
+              {Number(request.computed_price).toFixed(0)} MAD
             </span>
           </div>
 
