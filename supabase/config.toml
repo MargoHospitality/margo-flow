@@ -2,3 +2,9 @@ project_id = "fnbqegolwitkgjmlesbc"
 
 [functions.admin-search-user]
 verify_jwt = false
+
+[functions.send-manager-notification]
+verify_jwt = false
+
+[functions.send-client-confirmation]
+verify_jwt = false

@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/hooks/useLanguage';
-import { Loader2, AlertTriangle, Car, Check, ArrowLeft, Clock, Users, Calendar, Mail, Phone, Hash } from 'lucide-react';
+import { Loader2, AlertTriangle, Car, Check, ArrowLeft, Clock, Users, Calendar, Mail, Phone, Hash, MessageSquare } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { format, addDays, isToday, parseISO } from 'date-fns';
 
@@ -58,6 +59,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
   const [dynamicFields, setDynamicFields] = useState<Record<string, string>>({});
   const [guestEmail, setGuestEmail] = useState<string>('');
   const [guestWhatsapp, setGuestWhatsapp] = useState<string>('');
+  const [guestComment, setGuestComment] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -204,7 +206,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
         guest_whatsapp: guestWhatsapp.trim(),
       };
 
-      const { error } = await supabase
+      const { data: insertedData, error } = await supabase
         .from('transport_requests')
         .insert({
           reservation_id: reservation.reservation_id,
@@ -216,10 +218,44 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
           computed_price: computedPrice,
           payment_mode: selectedOffer.payment_mode,
           payload_details: payloadDetails,
+          guest_comment: guestComment.trim() || null,
           status: 'pending',
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Get manager email for notification
+      const { data: riadData } = await supabase
+        .from('riads')
+        .select('manager_email')
+        .eq('id', reservation.riad_id)
+        .single();
+
+      // Send manager notification email
+      if (riadData?.manager_email) {
+        try {
+          await supabase.functions.invoke('send-manager-notification', {
+            body: {
+              reservationId: reservation.reservation_id,
+              propertyName: reservation.riad_name,
+              guestName: `${reservation.guest_first_name || ''} ${reservation.guest_last_name}`.trim(),
+              transportType: language === 'fr' && selectedOffer.name_fr ? selectedOffer.name_fr : selectedOffer.name,
+              transportDate: format(parseISO(transportDate), 'PPP'),
+              arrivalTime: transportTime,
+              flightTrainNumber: dynamicFields.flight_number || dynamicFields.train_number,
+              guestComment: guestComment.trim() || undefined,
+              managerEmail: riadData.manager_email,
+              appUrl: window.location.origin,
+              requestId: insertedData.id,
+            },
+          });
+        } catch (emailError) {
+          console.error('Error sending manager notification:', emailError);
+          // Don't fail the request if email fails
+        }
+      }
 
       toast.success(t('request_submitted'));
       onSuccess();
@@ -452,6 +488,22 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
                   placeholder={t('guest_whatsapp_placeholder')}
                   className="input-mobile"
                   required
+                />
+              </div>
+
+              {/* Comment Field */}
+              <div className="space-y-2">
+                <Label htmlFor="guestComment" className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                  {t('guest_comment_label')}
+                </Label>
+                <Textarea
+                  id="guestComment"
+                  value={guestComment}
+                  onChange={(e) => setGuestComment(e.target.value)}
+                  placeholder={t('guest_comment_placeholder')}
+                  className="min-h-[80px] rounded-xl"
+                  maxLength={500}
                 />
               </div>
             </div>

@@ -21,6 +21,7 @@ interface TransportRequest {
   payload_details: Record<string, string>;
   status: string;
   rejection_reason: string | null;
+  guest_comment?: string | null;
   created_at: string;
   riad: { name: string };
   reservation: {
@@ -83,6 +84,7 @@ export default function Backoffice() {
           payload_details,
           status,
           rejection_reason,
+          guest_comment,
           created_at,
           riad:riads(name),
           reservation:reservations(guest_first_name, guest_last_name, check_in_date),
@@ -297,16 +299,33 @@ export default function Backoffice() {
               <p>{t('no_requests')}</p>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredRequests.map(request => (
-                <RequestCard
-                  key={request.id}
-                  request={request}
-                  isSuperAdmin={isSuperAdmin}
-                  onUpdate={fetchRequests}
-                />
-              ))}
-            </div>
+            <>
+              {/* Use list view for 3+ items, card view for 1-2 items */}
+              {filteredRequests.length > 2 ? (
+                <div className="space-y-2">
+                  {filteredRequests.map(request => (
+                    <RequestCard
+                      key={request.id}
+                      request={request}
+                      isSuperAdmin={isSuperAdmin}
+                      onUpdate={fetchRequests}
+                      compact
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {filteredRequests.map(request => (
+                    <RequestCard
+                      key={request.id}
+                      request={request}
+                      isSuperAdmin={isSuperAdmin}
+                      onUpdate={fetchRequests}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>

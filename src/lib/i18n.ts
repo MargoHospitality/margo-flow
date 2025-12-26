@@ -61,6 +61,8 @@ export const translations = {
     guest_email_placeholder: 'your.email@example.com',
     guest_whatsapp_label: 'WhatsApp Number',
     guest_whatsapp_placeholder: '+33 6 00 00 00 00',
+    guest_comment_label: 'Additional Comments',
+    guest_comment_placeholder: 'Any special requests or additional information...',
     
     // Transport form
     transport_details: 'Transport Details',
@@ -193,6 +195,8 @@ export const translations = {
     guest_email_placeholder: 'votre.email@exemple.com',
     guest_whatsapp_label: 'Numéro WhatsApp',
     guest_whatsapp_placeholder: '+33 6 00 00 00 00',
+    guest_comment_label: 'Commentaires Additionnels',
+    guest_comment_placeholder: 'Demandes spéciales ou informations supplémentaires...',
     
     // Transport form
     transport_details: 'Détails du Transport',
