@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.cloudbeds-check]
 verify_jwt = false
+
+[functions.cloudbeds-lookup]
+verify_jwt = false
+
+[functions.cloudbeds-webhook]
+verify_jwt = false
+
+[functions.cloudbeds-reconcile]
+verify_jwt = false

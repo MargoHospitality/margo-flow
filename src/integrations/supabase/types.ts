@@ -14,6 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
+      cloudbeds_sync_runs: {
+        Row: {
+          completed_at: string | null
+          error_message: string | null
+          id: string
+          property_id: string
+          reservations_created: number | null
+          reservations_processed: number | null
+          reservations_updated: number | null
+          run_type: string
+          started_at: string
+          status: string
+          transport_requests_cancelled: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          property_id: string
+          reservations_created?: number | null
+          reservations_processed?: number | null
+          reservations_updated?: number | null
+          run_type?: string
+          started_at?: string
+          status?: string
+          transport_requests_cancelled?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          property_id?: string
+          reservations_created?: number | null
+          reservations_processed?: number | null
+          reservations_updated?: number | null
+          run_type?: string
+          started_at?: string
+          status?: string
+          transport_requests_cancelled?: number | null
+        }
+        Relationships: []
+      }
+      cloudbeds_webhook_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_type: string
+          id: string
+          payload: Json
+          processed: boolean
+          processed_at: string | null
+          property_id: string
+          reservation_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_type: string
+          id?: string
+          payload?: Json
+          processed?: boolean
+          processed_at?: string | null
+          property_id: string
+          reservation_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed?: boolean
+          processed_at?: string | null
+          property_id?: string
+          reservation_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -44,40 +122,52 @@ export type Database = {
       reservations: {
         Row: {
           check_in_date: string
+          check_out_date: string | null
+          cloudbeds_raw: Json | null
           created_at: string
           guest_country_code: string | null
           guest_first_name: string | null
           guest_last_name: string
           id: string
+          nights: number | null
           property_id: string
           reservation_id: string
           riad_id: string | null
+          source: string | null
           status: Database["public"]["Enums"]["reservation_status"]
           updated_at: string
         }
         Insert: {
           check_in_date: string
+          check_out_date?: string | null
+          cloudbeds_raw?: Json | null
           created_at?: string
           guest_country_code?: string | null
           guest_first_name?: string | null
           guest_last_name: string
           id?: string
+          nights?: number | null
           property_id: string
           reservation_id: string
           riad_id?: string | null
+          source?: string | null
           status?: Database["public"]["Enums"]["reservation_status"]
           updated_at?: string
         }
         Update: {
           check_in_date?: string
+          check_out_date?: string | null
+          cloudbeds_raw?: Json | null
           created_at?: string
           guest_country_code?: string | null
           guest_first_name?: string | null
           guest_last_name?: string
           id?: string
+          nights?: number | null
           property_id?: string
           reservation_id?: string
           riad_id?: string | null
+          source?: string | null
           status?: Database["public"]["Enums"]["reservation_status"]
           updated_at?: string
         }
