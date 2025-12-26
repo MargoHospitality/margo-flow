@@ -10,6 +10,7 @@ interface AuthState {
   role: UserRole;
   isLoading: boolean;
   riadIds: string[];
+  isActive: boolean;
 }
 
 export function useAuth() {
@@ -19,6 +20,7 @@ export function useAuth() {
     role: null,
     isLoading: true,
     riadIds: [],
+    isActive: true,
   });
 
   useEffect(() => {
@@ -32,14 +34,14 @@ export function useAuth() {
 
         if (session?.user) {
           setTimeout(() => {
-            fetchUserRole(session.user.id);
-            fetchUserRiads(session.user.id);
+            fetchUserData(session.user.id);
           }, 0);
         } else {
           setAuthState(prev => ({
             ...prev,
             role: null,
             riadIds: [],
+            isActive: true,
             isLoading: false,
           }));
         }
@@ -54,8 +56,7 @@ export function useAuth() {
       }));
 
       if (session?.user) {
-        fetchUserRole(session.user.id);
-        fetchUserRiads(session.user.id);
+        fetchUserData(session.user.id);
       } else {
         setAuthState(prev => ({ ...prev, isLoading: false }));
       }
@@ -64,57 +65,53 @@ export function useAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function fetchUserRole(userId: string) {
+  async function fetchUserData(userId: string) {
     try {
-      const { data, error } = await supabase
+      // Fetch role
+      const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (roleError) console.error('Error fetching user role:', roleError);
 
-      setAuthState(prev => ({
-        ...prev,
-        role: (data?.role as UserRole) ?? 'manager',
-        isLoading: false,
-      }));
-    } catch (error) {
-      console.error('Error fetching user role:', error);
-      setAuthState(prev => ({ ...prev, role: 'manager', isLoading: false }));
-    }
-  }
-
-  async function fetchUserRiads(userId: string) {
-    try {
-      const { data, error } = await supabase
+      // Fetch riads
+      const { data: riadsData, error: riadsError } = await supabase
         .from('user_riads')
         .select('riad_id')
         .eq('user_id', userId);
 
-      if (error) throw error;
+      if (riadsError) console.error('Error fetching user riads:', riadsError);
+
+      // Fetch profile for is_active status
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_active')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (profileError) console.error('Error fetching profile:', profileError);
 
       setAuthState(prev => ({
         ...prev,
-        riadIds: data?.map(r => r.riad_id) ?? [],
+        role: (roleData?.role as UserRole) ?? 'manager',
+        riadIds: riadsData?.map(r => r.riad_id) ?? [],
+        isActive: profileData?.is_active ?? true,
+        isLoading: false,
       }));
     } catch (error) {
-      console.error('Error fetching user riads:', error);
+      console.error('Error fetching user data:', error);
+      setAuthState(prev => ({ 
+        ...prev, 
+        role: 'manager', 
+        isLoading: false 
+      }));
     }
   }
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
-  };
-
-  const signUp = async (email: string, password: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: redirectUrl },
-    });
     return { error };
   };
 
@@ -126,7 +123,6 @@ export function useAuth() {
   return {
     ...authState,
     signIn,
-    signUp,
     signOut,
     isSuperAdmin: authState.role === 'super_admin',
     isManager: authState.role === 'manager' || authState.role === 'super_admin',

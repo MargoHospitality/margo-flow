@@ -50,7 +50,7 @@ export default function Index() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-[100dvh] bg-background flex flex-col">
       {/* Header with language switcher and login */}
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
         <div className="container max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
@@ -109,7 +109,7 @@ export default function Index() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 py-6 safe-bottom">
+      <footer className="border-t border-border/50 py-4 mt-auto">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
             {t('footer_copyright')}{' '}
