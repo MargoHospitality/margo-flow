@@ -179,7 +179,8 @@ Price: ${body.price} MAD`;
     const formData = new URLSearchParams();
     formData.append('propertyID', MASSIBA_PROPERTY_ID);
     formData.append('reservationID', body.reservation_id);
-    formData.append('note', noteContent);
+    // Cloudbeds expects this field name (otherwise returns: "Parameter reservationNote is required")
+    formData.append('reservationNote', noteContent);
     formData.append('isPrivate', 'true'); // Internal note, not guest-facing
 
     console.log(`${logPrefix} POST URL: ${addNoteUrl}`);
