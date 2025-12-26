@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          is_active: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       reservations: {
         Row: {
           check_in_date: string
@@ -132,6 +159,7 @@ export type Database = {
           cloudbeds_property_id: string | null
           created_at: string
           id: string
+          is_active: boolean
           manager_email: string | null
           manager_whatsapp: string | null
           name: string
@@ -141,6 +169,7 @@ export type Database = {
           cloudbeds_property_id?: string | null
           created_at?: string
           id?: string
+          is_active?: boolean
           manager_email?: string | null
           manager_whatsapp?: string | null
           name: string
@@ -150,6 +179,7 @@ export type Database = {
           cloudbeds_property_id?: string | null
           created_at?: string
           id?: string
+          is_active?: boolean
           manager_email?: string | null
           manager_whatsapp?: string | null
           name?: string
@@ -169,6 +199,7 @@ export type Database = {
           default_payment_mode: Database["public"]["Enums"]["payment_mode"]
           fields_schema: Json | null
           id: string
+          is_active: boolean
           name: string
           name_fr: string | null
           type: Database["public"]["Enums"]["transport_type"]
@@ -185,6 +216,7 @@ export type Database = {
           default_payment_mode?: Database["public"]["Enums"]["payment_mode"]
           fields_schema?: Json | null
           id?: string
+          is_active?: boolean
           name: string
           name_fr?: string | null
           type: Database["public"]["Enums"]["transport_type"]
@@ -201,6 +233,7 @@ export type Database = {
           default_payment_mode?: Database["public"]["Enums"]["payment_mode"]
           fields_schema?: Json | null
           id?: string
+          is_active?: boolean
           name?: string
           name_fr?: string | null
           type?: Database["public"]["Enums"]["transport_type"]
@@ -347,6 +380,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_user_active: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "super_admin" | "manager" | "pending"

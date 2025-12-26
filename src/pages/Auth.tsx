@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
-import { Loader2, Building } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import margoflowLogo from '@/assets/margoflow-logo.png';
 
 const authSchema = z.object({
   email: z.string().trim().email('Please enter a valid email'),
@@ -19,11 +20,10 @@ export default function Auth() {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
   const { t } = useLanguage();
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
 
   useEffect(() => {
     if (user && !isLoading) {
@@ -34,7 +34,6 @@ export default function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate input
     const result = authSchema.safeParse({ email, password });
     if (!result.success) {
       toast.error(result.error.errors[0].message);
@@ -44,23 +43,17 @@ export default function Auth() {
     setIsSubmitting(true);
 
     try {
-      const { error } = isLogin
-        ? await signIn(email, password)
-        : await signUp(email, password);
+      const { error } = await signIn(email, password);
 
       if (error) {
-        if (error.message.includes('already registered')) {
-          toast.error('This email is already registered. Please sign in.');
-        } else if (error.message.includes('Invalid login credentials')) {
+        if (error.message.includes('Invalid login credentials')) {
           toast.error('Invalid email or password.');
+        } else if (error.message.includes('Email not confirmed')) {
+          toast.error('Please check your email to confirm your account.');
         } else {
           toast.error(error.message);
         }
         return;
-      }
-
-      if (!isLogin) {
-        toast.success('Account created successfully!');
       }
     } catch (error) {
       console.error('Auth error:', error);
@@ -79,88 +72,105 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-            <Building className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="heading-display text-3xl text-foreground">{t('app_name')}</h1>
-          <p className="text-muted-foreground mt-1">{t('dashboard')}</p>
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
+        <div className="container max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+          <Link 
+            to="/" 
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+            aria-label={t('back')}
+          >
+            <ArrowLeft className="h-5 w-5 text-muted-foreground" />
+          </Link>
+          <img 
+            src={margoflowLogo} 
+            alt="MargoFlow" 
+            className="h-8 md:h-10 object-contain"
+          />
+          <div className="w-10" /> {/* Spacer for centering */}
         </div>
+      </header>
 
-        <Card className="card-elevated animate-fade-in">
-          <CardHeader className="text-center">
-            <CardTitle className="heading-display text-xl">
-              {isLogin ? t('sign_in') : t('sign_up')}
-            </CardTitle>
-            <CardDescription>
-              {isLogin
-                ? 'Sign in to manage transport requests'
-                : 'Create an account to get started'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">{t('email')}</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="input-warm"
-                  required
-                />
-              </div>
+      {/* Main content */}
+      <main className="flex-1 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card className="card-elevated animate-fade-in">
+            <CardHeader className="text-center">
+              <CardTitle className="font-serif text-2xl">
+                {t('sign_in')}
+              </CardTitle>
+              <CardDescription>
+                Sign in to manage transport requests
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">{t('email')}</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="h-12"
+                    required
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">{t('password')}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="input-warm"
-                  required
-                  minLength={6}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">{t('password')}</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="h-12"
+                    required
+                    minLength={6}
+                  />
+                </div>
 
-              <Button
-                type="submit"
-                variant="default"
-                className="w-full"
-                size="lg"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="animate-spin" />
-                ) : isLogin ? (
-                  t('sign_in')
-                ) : (
-                  t('sign_up')
-                )}
-              </Button>
-            </form>
+                <Button
+                  type="submit"
+                  variant="default"
+                  className="w-full h-12"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    t('sign_in')
+                  )}
+                </Button>
+              </form>
 
-            <div className="mt-6 text-center">
-              <button
-                type="button"
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
-              >
-                {isLogin
-                  ? "Don't have an account? Sign up"
-                  : 'Already have an account? Sign in'}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                Access is by invitation only. Contact your administrator for an account.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border/50 py-4">
+        <div className="container mx-auto px-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            {t('footer_copyright')}{' '}
+            <a 
+              href="https://www.margo-hospitality.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              {t('footer_margo')}
+            </a>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

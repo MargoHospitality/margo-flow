@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { RequestCard } from '@/components/backoffice/RequestCard';
-import { Loader2, LogOut, Building, Bell } from 'lucide-react';
+import { Loader2, LogOut, Bell, Shield, AlertCircle } from 'lucide-react';
+import margoflowLogo from '@/assets/margoflow-logo.png';
 
 interface TransportRequest {
   id: string;
@@ -35,7 +36,7 @@ interface TransportRequest {
 
 export default function Backoffice() {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading, signOut, isSuperAdmin, riadIds } = useAuth();
+  const { user, isLoading: authLoading, signOut, isSuperAdmin, isManager, riadIds, isActive } = useAuth();
   const { t } = useLanguage();
   const [requests, setRequests] = useState<TransportRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,10 +49,10 @@ export default function Backoffice() {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (user) {
+    if (user && isManager && isActive) {
       fetchRequests();
     }
-  }, [user, isSuperAdmin, riadIds]);
+  }, [user, isSuperAdmin, riadIds, isManager, isActive]);
 
   async function fetchRequests() {
     setIsLoading(true);
@@ -85,7 +86,6 @@ export default function Backoffice() {
 
       if (error) throw error;
 
-      // Transform data to match expected structure
       const transformedData = (data || []).map(item => ({
         ...item,
         riad: item.riad as unknown as { name: string },
@@ -118,35 +118,60 @@ export default function Backoffice() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <Building className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="font-display text-xl font-semibold">{t('app_name')}</h1>
-              <p className="text-xs text-muted-foreground">{t('dashboard')}</p>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
+  // Show deactivated message
+  if (!isActive) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
+          <h1 className="font-serif text-2xl mb-2">Account Deactivated</h1>
+          <p className="text-muted-foreground mb-6">
+            Your account has been deactivated. Please contact your administrator for assistance.
+          </p>
+          <Button onClick={handleLogout} variant="outline">
             <LogOut className="h-4 w-4 mr-2" />
-            {t('logout')}
+            Sign Out
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+          <img 
+            src={margoflowLogo} 
+            alt="MargoFlow" 
+            className="h-8 md:h-10 object-contain"
+          />
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <Link to="/admin">
+                <Button variant="ghost" size="sm">
+                  <Shield className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Admin</span>
+                </Button>
+              </Link>
+            )}
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">{t('logout')}</span>
+            </Button>
+          </div>
         </div>
       </header>
 
       {/* Content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="flex-1 container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-md grid-cols-2 mx-auto">
             <TabsTrigger value="pending" className="relative">
               {t('pending_requests')}
               {pendingRequests.length > 0 && (
-                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-amber text-primary-foreground rounded-full">
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
                   {pendingRequests.length}
                 </span>
               )}
@@ -203,6 +228,23 @@ export default function Backoffice() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border/50 py-4">
+        <div className="container mx-auto px-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            {t('footer_copyright')}{' '}
+            <a 
+              href="https://www.margo-hospitality.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              {t('footer_margo')}
+            </a>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
