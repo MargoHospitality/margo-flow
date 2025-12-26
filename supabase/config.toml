@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.send-client-confirmation]
 verify_jwt = false
+
+[functions.cloudbeds-check]
+verify_jwt = false
