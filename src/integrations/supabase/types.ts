@@ -245,6 +245,7 @@ export type Database = {
         Row: {
           computed_price: number
           created_at: string
+          guest_comment: string | null
           id: string
           pax: number
           payload_details: Json | null
@@ -261,6 +262,7 @@ export type Database = {
         Insert: {
           computed_price: number
           created_at?: string
+          guest_comment?: string | null
           id?: string
           pax: number
           payload_details?: Json | null
@@ -277,6 +279,7 @@ export type Database = {
         Update: {
           computed_price?: number
           created_at?: string
+          guest_comment?: string | null
           id?: string
           pax?: number
           payload_details?: Json | null
