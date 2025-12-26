@@ -1,11 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/hooks/useLanguage';
-import { Loader2, Search, Building, X, ChevronRight } from 'lucide-react';
+import { Loader2, Search, Building, X, ChevronRight, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { format, parse } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface Riad {
   id: string;
@@ -28,6 +32,9 @@ interface ReservationEntryProps {
   preselectedRiadId?: string;
 }
 
+// Cloudflare Turnstile site key (publishable)
+const TURNSTILE_SITE_KEY = '0x4AAAAAABkW-7O4UtU7qxG8';
+
 export function ReservationEntry({ onReservationFound, preselectedRiadId }: ReservationEntryProps) {
   const { t } = useLanguage();
   const [riads, setRiads] = useState<Riad[]>([]);
@@ -37,13 +44,61 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
   const [riadSearch, setRiadSearch] = useState('');
   const [selectedRiad, setSelectedRiad] = useState<Riad | null>(null);
   const [reservationId, setReservationId] = useState('');
+  const [checkInDate, setCheckInDate] = useState<Date | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Captcha state
+  const [captchaRequired, setCaptchaRequired] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const turnstileRef = useRef<HTMLDivElement>(null);
+  const turnstileWidgetId = useRef<string | null>(null);
   
   // Autocomplete state
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredRiads, setFilteredRiads] = useState<Riad[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Load Turnstile script
+  useEffect(() => {
+    if (captchaRequired && typeof window !== 'undefined') {
+      const existingScript = document.querySelector('script[src*="turnstile"]');
+      if (!existingScript) {
+        const script = document.createElement('script');
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+    }
+  }, [captchaRequired]);
+
+  // Render Turnstile widget when required
+  useEffect(() => {
+    if (captchaRequired && turnstileRef.current && (window as any).turnstile) {
+      // Clear existing widget
+      if (turnstileWidgetId.current) {
+        try {
+          (window as any).turnstile.remove(turnstileWidgetId.current);
+        } catch (e) {}
+      }
+      
+      turnstileWidgetId.current = (window as any).turnstile.render(turnstileRef.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        callback: (token: string) => {
+          setCaptchaToken(token);
+        },
+        'expired-callback': () => {
+          setCaptchaToken(null);
+        },
+        'error-callback': () => {
+          setCaptchaToken(null);
+        },
+        theme: 'light',
+      });
+    }
+  }, [captchaRequired]);
 
   useEffect(() => {
     fetchRiads();
@@ -136,11 +191,24 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
       return;
     }
 
+    if (!checkInDate) {
+      toast.error(t('check_in_date_required'));
+      return;
+    }
+
+    // If captcha is required but not solved, block submission
+    if (captchaRequired && !captchaToken) {
+      toast.error(t('captcha_required'));
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const reservationIdStr = reservationId.trim();
+      const checkInDateStr = format(checkInDate, 'yyyy-MM-dd');
 
+      // First check local database
       const { data, error } = await supabase
         .from('reservations')
         .select(`
@@ -160,17 +228,47 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
 
       let resolved = data;
 
+      // Validate check-in date if found locally
+      if (resolved) {
+        if (resolved.check_in_date !== checkInDateStr) {
+          // Date mismatch - generic error to avoid info leakage
+          setFailedAttempts(prev => prev + 1);
+          if (failedAttempts + 1 >= 3) {
+            setCaptchaRequired(true);
+          }
+          toast.error(t('reservation_not_found'));
+          return;
+        }
+      }
+
       // If not found locally, try Cloudbeds on-demand lookup for Massiba only
       if (!resolved && selectedRiad.cloudbeds_property_id === '9462') {
         const { data: lookupData, error: lookupError } = await supabase.functions.invoke('cloudbeds-lookup', {
           body: {
             reservation_id: reservationIdStr,
             property_id: '9462',
+            check_in_date: checkInDateStr,
+            turnstile_token: captchaToken,
           },
         });
 
         if (lookupError) {
           console.error('Cloudbeds lookup error:', lookupError);
+        }
+
+        // Handle rate limiting response
+        if (lookupData?.rate_limited) {
+          const waitTime = lookupData.retry_after || 60;
+          toast.error(t('too_many_requests').replace('{seconds}', String(waitTime)));
+          setCaptchaRequired(true);
+          return;
+        }
+
+        // Handle captcha requirement from server
+        if (lookupData?.captcha_required) {
+          setCaptchaRequired(true);
+          toast.error(t('verification_required'));
+          return;
         }
 
         if (lookupData?.found && lookupData?.reservation) {
@@ -187,6 +285,10 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
       }
 
       if (!resolved) {
+        setFailedAttempts(prev => prev + 1);
+        if (failedAttempts + 1 >= 3) {
+          setCaptchaRequired(true);
+        }
         toast.error(t('reservation_not_found'));
         return;
       }
@@ -207,6 +309,11 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
         toast.error(t('existing_request'));
         return;
       }
+
+      // Reset failed attempts on success
+      setFailedAttempts(0);
+      setCaptchaRequired(false);
+      setCaptchaToken(null);
 
       onReservationFound(
         {
@@ -322,11 +429,61 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
             required
           />
         </div>
+
+        {/* Check-in Date */}
+        <div className="space-y-2">
+          <Label htmlFor="checkInDate" className="text-sm font-medium text-foreground">
+            {t('check_in_date_label')}
+          </Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                id="checkInDate"
+                variant="outline"
+                className={cn(
+                  "w-full h-12 justify-start text-left font-normal",
+                  !checkInDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-3 h-5 w-5" />
+                {checkInDate ? format(checkInDate, "PPP") : <span>{t('check_in_date_placeholder')}</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={checkInDate}
+                onSelect={setCheckInDate}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Turnstile CAPTCHA - only shown when required */}
+        {captchaRequired && (
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-foreground">
+              {t('verify_human')}
+            </Label>
+            <div 
+              ref={turnstileRef} 
+              className="flex justify-center"
+            />
+            {!captchaToken && (
+              <p className="text-xs text-muted-foreground text-center">
+                {t('complete_captcha')}
+              </p>
+            )}
+          </div>
+        )}
+
         <Button 
           type="submit" 
           className="w-full h-14 text-base font-medium rounded-xl mt-2" 
           size="lg"
-          disabled={isLoading || !selectedRiad}
+          disabled={isLoading || !selectedRiad || (captchaRequired && !captchaToken)}
         >
           {isLoading ? (
             <Loader2 className="animate-spin mr-2 h-5 w-5" />
