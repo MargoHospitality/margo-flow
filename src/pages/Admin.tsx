@@ -39,6 +39,27 @@ interface TransportOffer {
   is_active: boolean;
 }
 
+interface RiadTransportOffer {
+  id: string;
+  riad_id: string;
+  transport_offer_id: string;
+  is_active: boolean;
+  override_day_price: number | null;
+  override_night_price: number | null;
+  override_base_pax: number | null;
+  override_extra_pax_price: number | null;
+  override_payment_mode: string | null;
+}
+
+type TransportType = 'airport_pickup' | 'train_station_pickup' | 'hotel_pickup' | 'bus_station_pickup';
+
+const TRANSPORT_TYPES: { value: TransportType; label: string }[] = [
+  { value: 'airport_pickup', label: 'Airport Pickup' },
+  { value: 'train_station_pickup', label: 'Train Station Pickup' },
+  { value: 'hotel_pickup', label: 'Hotel Pickup' },
+  { value: 'bus_station_pickup', label: 'Bus Station Pickup' },
+];
+
 interface UserData {
   id: string;
   email: string;
@@ -82,6 +103,19 @@ export default function Admin() {
   // Transport offers state
   const [offers, setOffers] = useState<TransportOffer[]>([]);
   const [isLoadingOffers, setIsLoadingOffers] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<TransportOffer | null>(null);
+  const [newOffer, setNewOffer] = useState({
+    name: '', name_fr: '', type: 'airport_pickup' as TransportType,
+    default_day_price: '', default_night_price: '',
+    default_base_pax: '3', default_extra_pax_price: '0',
+    default_payment_mode: 'at_riad'
+  });
+  const [isSavingOffer, setIsSavingOffer] = useState(false);
+  
+  // Riad-Transport assignments state
+  const [riadOffers, setRiadOffers] = useState<RiadTransportOffer[]>([]);
+  const [selectedRiadForOffers, setSelectedRiadForOffers] = useState<string | null>(null);
+  const [isLoadingRiadOffers, setIsLoadingRiadOffers] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -164,6 +198,141 @@ export default function Admin() {
       console.error('Error fetching offers:', error);
     } finally {
       setIsLoadingOffers(false);
+    }
+  }
+
+  async function fetchRiadOffers(riadId: string) {
+    setIsLoadingRiadOffers(true);
+    try {
+      const { data, error } = await supabase
+        .from('riad_transport_offers')
+        .select('*')
+        .eq('riad_id', riadId);
+      
+      if (!error && data) {
+        setRiadOffers(data as RiadTransportOffer[]);
+      }
+    } catch (error) {
+      console.error('Error fetching riad offers:', error);
+    } finally {
+      setIsLoadingRiadOffers(false);
+    }
+  }
+
+  async function handleSaveOffer(offer: {
+    name: string;
+    name_fr?: string | null;
+    type: string;
+    default_day_price: string | number;
+    default_night_price: string | number;
+    default_base_pax: string | number;
+    default_extra_pax_price: string | number;
+    default_payment_mode: string;
+  }) {
+    if (!offer.name || !offer.default_day_price || !offer.default_night_price) {
+      toast.error('Name and prices are required');
+      return;
+    }
+    
+    setIsSavingOffer(true);
+    try {
+      const offerData = {
+        name: offer.name,
+        name_fr: offer.name_fr || null,
+        type: offer.type as TransportType,
+        default_day_price: Number(offer.default_day_price),
+        default_night_price: Number(offer.default_night_price),
+        default_base_pax: Number(offer.default_base_pax) || 3,
+        default_extra_pax_price: Number(offer.default_extra_pax_price) || 0,
+        default_payment_mode: offer.default_payment_mode as 'at_riad' | 'to_driver'
+      };
+
+      if (editingOffer) {
+        const { error } = await supabase
+          .from('transport_offers')
+          .update(offerData)
+          .eq('id', editingOffer.id);
+
+        if (error) throw error;
+        toast.success('Offer updated');
+        setEditingOffer(null);
+      } else {
+        const { error } = await supabase
+          .from('transport_offers')
+          .insert(offerData);
+
+        if (error) throw error;
+        toast.success('Offer created');
+        setNewOffer({
+          name: '', name_fr: '', type: 'airport_pickup',
+          default_day_price: '', default_night_price: '',
+          default_base_pax: '3', default_extra_pax_price: '0',
+          default_payment_mode: 'at_riad'
+        });
+      }
+      fetchOffers();
+    } catch (error) {
+      console.error('Save offer error:', error);
+      toast.error('Failed to save offer');
+    } finally {
+      setIsSavingOffer(false);
+    }
+  }
+
+  async function handleToggleRiadOffer(riadId: string, offerId: string, isCurrentlyAssigned: boolean, override?: Partial<RiadTransportOffer>) {
+    try {
+      if (isCurrentlyAssigned) {
+        // Remove assignment
+        const { error } = await supabase
+          .from('riad_transport_offers')
+          .delete()
+          .eq('riad_id', riadId)
+          .eq('transport_offer_id', offerId);
+        if (error) throw error;
+        toast.success('Offer removed from riad');
+      } else {
+        // Add assignment
+        const { error } = await supabase
+          .from('riad_transport_offers')
+          .insert([{
+            riad_id: riadId,
+            transport_offer_id: offerId,
+            is_active: true,
+            override_day_price: override?.override_day_price ?? null,
+            override_night_price: override?.override_night_price ?? null,
+            override_base_pax: override?.override_base_pax ?? null,
+            override_extra_pax_price: override?.override_extra_pax_price ?? null,
+            override_payment_mode: (override?.override_payment_mode as 'at_riad' | 'to_driver' | null) ?? null
+          }]);
+        if (error) throw error;
+        toast.success('Offer assigned to riad');
+      }
+      if (selectedRiadForOffers) fetchRiadOffers(selectedRiadForOffers);
+    } catch (error) {
+      console.error('Toggle riad offer error:', error);
+      toast.error('Failed to update assignment');
+    }
+  }
+
+  async function handleUpdateRiadOfferOverride(riadOfferId: string, overrides: Partial<RiadTransportOffer>) {
+    try {
+      const { error } = await supabase
+        .from('riad_transport_offers')
+        .update({
+          override_day_price: overrides.override_day_price ?? null,
+          override_night_price: overrides.override_night_price ?? null,
+          override_base_pax: overrides.override_base_pax ?? null,
+          override_extra_pax_price: overrides.override_extra_pax_price ?? null,
+          override_payment_mode: (overrides.override_payment_mode as 'at_riad' | 'to_driver' | null) ?? null
+        })
+        .eq('id', riadOfferId);
+      
+      if (error) throw error;
+      toast.success('Override saved');
+      if (selectedRiadForOffers) fetchRiadOffers(selectedRiadForOffers);
+    } catch (error) {
+      console.error('Update override error:', error);
+      toast.error('Failed to update override');
     }
   }
 
@@ -743,11 +912,152 @@ export default function Admin() {
 
           {/* Transport Tab */}
           <TabsContent value="transport" className="space-y-6">
+            {/* Add/Edit Transport Offer */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Truck className="h-5 w-5" />
-                  Transport Offers
+                  {editingOffer ? 'Edit Transport Offer' : 'Add New Transport Offer'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Name (EN) *</Label>
+                    <Input
+                      value={editingOffer ? editingOffer.name : newOffer.name}
+                      onChange={(e) => editingOffer 
+                        ? setEditingOffer({ ...editingOffer, name: e.target.value })
+                        : setNewOffer({ ...newOffer, name: e.target.value })
+                      }
+                      placeholder="Airport Pickup"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Name (FR)</Label>
+                    <Input
+                      value={editingOffer ? editingOffer.name_fr || '' : newOffer.name_fr}
+                      onChange={(e) => editingOffer
+                        ? setEditingOffer({ ...editingOffer, name_fr: e.target.value })
+                        : setNewOffer({ ...newOffer, name_fr: e.target.value })
+                      }
+                      placeholder="Transfert Aéroport"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Type *</Label>
+                    <Select 
+                      value={editingOffer ? editingOffer.type : newOffer.type}
+                      onValueChange={(v) => editingOffer
+                        ? setEditingOffer({ ...editingOffer, type: v })
+                        : setNewOffer({ ...newOffer, type: v as TransportType })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TRANSPORT_TYPES.map(t => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Payment Mode</Label>
+                    <Select 
+                      value={editingOffer ? editingOffer.default_payment_mode : newOffer.default_payment_mode}
+                      onValueChange={(v) => editingOffer
+                        ? setEditingOffer({ ...editingOffer, default_payment_mode: v })
+                        : setNewOffer({ ...newOffer, default_payment_mode: v })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="at_riad">At Riad</SelectItem>
+                        <SelectItem value="to_driver">To Driver</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-2">
+                    <Label>Day Price (MAD) *</Label>
+                    <Input
+                      type="number"
+                      value={editingOffer ? editingOffer.default_day_price : newOffer.default_day_price}
+                      onChange={(e) => editingOffer
+                        ? setEditingOffer({ ...editingOffer, default_day_price: Number(e.target.value) })
+                        : setNewOffer({ ...newOffer, default_day_price: e.target.value })
+                      }
+                      placeholder="200"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Night Price (MAD) *</Label>
+                    <Input
+                      type="number"
+                      value={editingOffer ? editingOffer.default_night_price : newOffer.default_night_price}
+                      onChange={(e) => editingOffer
+                        ? setEditingOffer({ ...editingOffer, default_night_price: Number(e.target.value) })
+                        : setNewOffer({ ...newOffer, default_night_price: e.target.value })
+                      }
+                      placeholder="250"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Base Pax</Label>
+                    <Input
+                      type="number"
+                      value={editingOffer ? editingOffer.default_base_pax : newOffer.default_base_pax}
+                      onChange={(e) => editingOffer
+                        ? setEditingOffer({ ...editingOffer, default_base_pax: Number(e.target.value) })
+                        : setNewOffer({ ...newOffer, default_base_pax: e.target.value })
+                      }
+                      placeholder="3"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Extra Pax Price</Label>
+                    <Input
+                      type="number"
+                      value={editingOffer ? editingOffer.default_extra_pax_price : newOffer.default_extra_pax_price}
+                      onChange={(e) => editingOffer
+                        ? setEditingOffer({ ...editingOffer, default_extra_pax_price: Number(e.target.value) })
+                        : setNewOffer({ ...newOffer, default_extra_pax_price: e.target.value })
+                      }
+                      placeholder="50"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {editingOffer && (
+                    <Button variant="outline" className="flex-1" onClick={() => setEditingOffer(null)}>
+                      Cancel
+                    </Button>
+                  )}
+                  <Button 
+                    className="flex-1" 
+                    onClick={() => handleSaveOffer(editingOffer || newOffer)}
+                    disabled={isSavingOffer}
+                  >
+                    {isSavingOffer && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    {editingOffer ? 'Update Offer' : 'Add Offer'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Transport Offers List */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Truck className="h-5 w-5" />
+                  All Transport Offers
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -765,20 +1075,152 @@ export default function Admin() {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{offer.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {offer.type} • Day: {offer.default_day_price} MAD • Night: {offer.default_night_price} MAD
+                            {TRANSPORT_TYPES.find(t => t.value === offer.type)?.label || offer.type} • Day: {offer.default_day_price} MAD • Night: {offer.default_night_price} MAD
                           </p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleToggleOfferActive(offer)}
-                        >
-                          {offer.is_active ? 'Deactivate' : 'Activate'}
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setEditingOffer(offer)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleOfferActive(offer)}
+                          >
+                            {offer.is_active ? 'Deactivate' : 'Activate'}
+                          </Button>
+                        </div>
                       </div>
                     ))}
                     {offers.length === 0 && (
                       <p className="text-center text-muted-foreground py-4">No transport offers found</p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Assign Offers to Riads */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Building className="h-5 w-5" />
+                  Assign Offers to Riads
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Select Riad</Label>
+                  <Select 
+                    value={selectedRiadForOffers || ''} 
+                    onValueChange={(v) => {
+                      setSelectedRiadForOffers(v);
+                      fetchRiadOffers(v);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a riad..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {riads.filter(r => r.is_active).map(riad => (
+                        <SelectItem key={riad.id} value={riad.id}>{riad.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedRiadForOffers && (
+                  <div className="space-y-3">
+                    {isLoadingRiadOffers ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      </div>
+                    ) : (
+                      offers.filter(o => o.is_active).map(offer => {
+                        const assignment = riadOffers.find(ro => ro.transport_offer_id === offer.id);
+                        const isAssigned = !!assignment;
+                        
+                        return (
+                          <div key={offer.id} className="border rounded-lg p-3 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <Checkbox
+                                  checked={isAssigned}
+                                  onCheckedChange={() => handleToggleRiadOffer(selectedRiadForOffers, offer.id, isAssigned)}
+                                />
+                                <span className="font-medium text-sm">{offer.name}</span>
+                              </label>
+                              <span className="text-xs text-muted-foreground">
+                                Default: {offer.default_day_price}/{offer.default_night_price} MAD
+                              </span>
+                            </div>
+                            
+                            {isAssigned && assignment && (
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 pl-6">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Override Day Price</Label>
+                                  <Input
+                                    type="number"
+                                    placeholder={String(offer.default_day_price)}
+                                    value={assignment.override_day_price ?? ''}
+                                    onChange={(e) => handleUpdateRiadOfferOverride(assignment.id, {
+                                      ...assignment,
+                                      override_day_price: e.target.value ? Number(e.target.value) : null
+                                    })}
+                                    className="h-8 text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Override Night Price</Label>
+                                  <Input
+                                    type="number"
+                                    placeholder={String(offer.default_night_price)}
+                                    value={assignment.override_night_price ?? ''}
+                                    onChange={(e) => handleUpdateRiadOfferOverride(assignment.id, {
+                                      ...assignment,
+                                      override_night_price: e.target.value ? Number(e.target.value) : null
+                                    })}
+                                    className="h-8 text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Override Base Pax</Label>
+                                  <Input
+                                    type="number"
+                                    placeholder={String(offer.default_base_pax)}
+                                    value={assignment.override_base_pax ?? ''}
+                                    onChange={(e) => handleUpdateRiadOfferOverride(assignment.id, {
+                                      ...assignment,
+                                      override_base_pax: e.target.value ? Number(e.target.value) : null
+                                    })}
+                                    className="h-8 text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Override Extra Pax</Label>
+                                  <Input
+                                    type="number"
+                                    placeholder={String(offer.default_extra_pax_price)}
+                                    value={assignment.override_extra_pax_price ?? ''}
+                                    onChange={(e) => handleUpdateRiadOfferOverride(assignment.id, {
+                                      ...assignment,
+                                      override_extra_pax_price: e.target.value ? Number(e.target.value) : null
+                                    })}
+                                    className="h-8 text-sm"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                    {offers.filter(o => o.is_active).length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">No active offers to assign</p>
                     )}
                   </div>
                 )}
