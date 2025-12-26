@@ -11,7 +11,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Search, UserCog, Shield, UserPlus, Users, Building, Truck, MapPin } from 'lucide-react';
+import { Loader2, ArrowLeft, Search, UserCog, Shield, UserPlus, Users, Building, Truck, MapPin, Cloud } from 'lucide-react';
+import CloudbedsIntegration from '@/components/admin/CloudbedsIntegration';
 import margoflowLogo from '@/assets/margoflow-logo.png';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -570,7 +571,7 @@ export default function Admin() {
       {/* Main content */}
       <main className="flex-1 container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3 mx-auto">
+          <TabsList className="grid w-full max-w-lg grid-cols-4 mx-auto">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               <span className="hidden sm:inline">Users</span>
@@ -582,6 +583,10 @@ export default function Admin() {
             <TabsTrigger value="transport" className="flex items-center gap-2">
               <Truck className="h-4 w-4" />
               <span className="hidden sm:inline">Transport</span>
+            </TabsTrigger>
+            <TabsTrigger value="cloudbeds" className="flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              <span className="hidden sm:inline">Cloudbeds</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1252,6 +1257,11 @@ export default function Admin() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Cloudbeds Integration Tab */}
+          <TabsContent value="cloudbeds">
+            <CloudbedsIntegration />
           </TabsContent>
         </Tabs>
       </main>
