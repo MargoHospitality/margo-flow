@@ -312,7 +312,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
                       </span>
                     </div>
                     <span className="text-sm text-muted-foreground">
-                      €{offer.day_price}
+                      {offer.day_price} MAD
                     </span>
                   </div>
                 </button>
@@ -399,7 +399,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
               <div className="flex justify-between items-center">
                 <span className="font-medium text-foreground">{t('total_price')}</span>
                 <span className="text-3xl font-serif font-semibold text-primary">
-                  €{computedPrice.toFixed(0)}
+                  {computedPrice.toFixed(0)} MAD
                 </span>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
