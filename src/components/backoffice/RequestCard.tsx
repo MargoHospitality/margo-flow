@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
-import { Check, X, Edit2, User, Calendar, Clock, Users, Car, Loader2 } from 'lucide-react';
+import { Check, X, Edit2, User, Calendar, Clock, Users, Car, Loader2, Hash } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface TransportRequest {
@@ -148,7 +148,10 @@ export function RequestCard({ request, isSuperAdmin, onUpdate }: RequestCardProp
                 <User className="h-4 w-4 text-muted-foreground" />
                 {request.reservation.guest_first_name} {request.reservation.guest_last_name}
               </CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">{request.riad.name}</p>
+              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                <Hash className="h-3 w-3" />
+                {request.riad.name} ({request.reservation_id})
+              </p>
             </div>
             <Badge className={`${statusColors[request.status as keyof typeof statusColors]} border`}>
               {t(`status_${request.status}` as keyof typeof t)}

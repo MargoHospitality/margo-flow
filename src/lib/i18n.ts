@@ -29,7 +29,7 @@ export const translations = {
     admin_search: 'Search',
     admin_user_not_found: 'User not found',
     admin_assign_role: 'Assign Role',
-    admin_assign_riads: 'Assign Riads',
+    admin_assign_riads: 'Assign Properties',
     admin_save_changes: 'Save Changes',
     admin_role_pending: 'Pending',
     admin_role_manager: 'Manager',
@@ -39,12 +39,12 @@ export const translations = {
     
     // Guest flow
     welcome_title: 'Arrival Transport',
-    welcome_subtitle: 'Book your comfortable transfer to the riad',
-    select_riad: 'Please select your riad',
+    welcome_subtitle: 'Book your comfortable transfer to the property',
+    select_riad: 'Please select your property',
     reservation_lookup: 'Request your transfer',
     riad_name_label: 'Property Name',
     riad_name_placeholder: 'Start typing to search...',
-    no_riads_found: 'No riads found',
+    no_riads_found: 'No properties found',
     reservation_id_label: 'Reservation Number',
     reservation_id_placeholder: 'Enter your booking confirmation ID',
     last_name_label: 'Last Name',
@@ -54,15 +54,23 @@ export const translations = {
     reservation_invalid: 'This reservation is no longer valid.',
     existing_request: 'A transport request already exists for this reservation.',
     
+    // Guest contact info
+    guest_contact_title: 'Contact Information',
+    guest_contact_explanation: 'These details are required to confirm your transfer and allow the driver to contact you if needed.',
+    guest_email_label: 'Email',
+    guest_email_placeholder: 'your.email@example.com',
+    guest_whatsapp_label: 'WhatsApp Number',
+    guest_whatsapp_placeholder: '+33 6 00 00 00 00',
+    
     // Transport form
     transport_details: 'Transport Details',
     select_transport_type: 'Select Transport Type',
     transport_date: 'Transport Date',
-    transport_time: 'Pickup Time',
+    transport_time: 'Arrival Time',
     passengers: 'Number of Passengers',
     price_calculation: 'Price Calculation',
     total_price: 'Total Price',
-    payment_at_riad: 'Payment at Riad',
+    payment_at_riad: 'Payment at Property',
     payment_to_driver: 'Payment to Driver',
     
     // Transport types
@@ -82,10 +90,10 @@ export const translations = {
     // Confirmation
     request_submitted: 'Request Submitted',
     request_submitted_message: 'Your transport request has been submitted. You will receive confirmation soon.',
-    request_pending: 'Pending confirmation from the riad.',
+    request_pending: 'Pending confirmation from the property.',
     
     // Warnings
-    late_booking_warning: 'This is a same-day booking. Please contact the riad directly for urgent requests.',
+    late_booking_warning: 'This is a same-day booking. Please contact the property directly for urgent requests.',
     contact_whatsapp: 'Contact via WhatsApp',
     
     // Status
@@ -94,10 +102,16 @@ export const translations = {
     status_rejected: 'Rejected',
     status_canceled: 'Canceled',
     
-    // Back-office
-    dashboard: 'Dashboard',
+    // Back-office menu
+    today_transfers: 'Today',
+    tomorrow_transfers: 'Tomorrow',
+    upcoming_transfers: 'Upcoming',
     pending_requests: 'Pending Requests',
     all_requests: 'All Requests',
+    search_placeholder: 'Search requests...',
+    
+    // Back-office
+    dashboard: 'Dashboard',
     logout: 'Logout',
     login: 'Login',
     email: 'Email',
@@ -112,6 +126,7 @@ export const translations = {
     edit_transport: 'Edit Transport',
     guest_info: 'Guest Information',
     transport_info: 'Transport Information',
+    reservation_ref: 'Reservation',
     
     // Validation
     required_field: 'This field is required',
@@ -146,7 +161,7 @@ export const translations = {
     admin_search: 'Rechercher',
     admin_user_not_found: 'Utilisateur non trouvé',
     admin_assign_role: 'Attribuer le Rôle',
-    admin_assign_riads: 'Attribuer les Riads',
+    admin_assign_riads: 'Attribuer les Propriétés',
     admin_save_changes: 'Enregistrer',
     admin_role_pending: 'En attente',
     admin_role_manager: 'Manager',
@@ -156,12 +171,12 @@ export const translations = {
     
     // Guest flow
     welcome_title: 'Transport à l\'arrivée',
-    welcome_subtitle: 'Réservez votre transfert confortable vers le riad',
-    select_riad: 'Veuillez sélectionner votre riad',
+    welcome_subtitle: 'Réservez votre transfert confortable vers la propriété',
+    select_riad: 'Veuillez sélectionner votre propriété',
     reservation_lookup: 'Demandez votre transfert',
     riad_name_label: 'Nom de la Propriété',
     riad_name_placeholder: 'Commencez à taper pour rechercher...',
-    no_riads_found: 'Aucun riad trouvé',
+    no_riads_found: 'Aucune propriété trouvée',
     reservation_id_label: 'Numéro de Réservation',
     reservation_id_placeholder: 'Entrez votre ID de confirmation',
     last_name_label: 'Nom de famille',
@@ -171,15 +186,23 @@ export const translations = {
     reservation_invalid: 'Cette réservation n\'est plus valide.',
     existing_request: 'Une demande de transport existe déjà pour cette réservation.',
     
+    // Guest contact info
+    guest_contact_title: 'Coordonnées',
+    guest_contact_explanation: 'Ces informations sont nécessaires pour confirmer votre transfert et permettre au chauffeur de vous contacter si besoin.',
+    guest_email_label: 'Email',
+    guest_email_placeholder: 'votre.email@exemple.com',
+    guest_whatsapp_label: 'Numéro WhatsApp',
+    guest_whatsapp_placeholder: '+33 6 00 00 00 00',
+    
     // Transport form
     transport_details: 'Détails du Transport',
     select_transport_type: 'Sélectionnez le Type de Transport',
     transport_date: 'Date du Transport',
-    transport_time: 'Heure de Prise en Charge',
+    transport_time: 'Heure d\'Arrivée',
     passengers: 'Nombre de Passagers',
     price_calculation: 'Calcul du Prix',
     total_price: 'Prix Total',
-    payment_at_riad: 'Paiement au Riad',
+    payment_at_riad: 'Paiement à la Propriété',
     payment_to_driver: 'Paiement au Chauffeur',
     
     // Transport types
@@ -199,10 +222,10 @@ export const translations = {
     // Confirmation
     request_submitted: 'Demande Soumise',
     request_submitted_message: 'Votre demande de transport a été soumise. Vous recevrez bientôt une confirmation.',
-    request_pending: 'En attente de confirmation du riad.',
+    request_pending: 'En attente de confirmation de la propriété.',
     
     // Warnings
-    late_booking_warning: 'Ceci est une réservation pour aujourd\'hui. Veuillez contacter le riad directement pour les demandes urgentes.',
+    late_booking_warning: 'Ceci est une réservation pour aujourd\'hui. Veuillez contacter la propriété directement pour les demandes urgentes.',
     contact_whatsapp: 'Contacter via WhatsApp',
     
     // Status
@@ -211,10 +234,16 @@ export const translations = {
     status_rejected: 'Rejeté',
     status_canceled: 'Annulé',
     
-    // Back-office
-    dashboard: 'Tableau de Bord',
+    // Back-office menu
+    today_transfers: 'Aujourd\'hui',
+    tomorrow_transfers: 'Demain',
+    upcoming_transfers: 'À venir',
     pending_requests: 'Demandes en Attente',
     all_requests: 'Toutes les Demandes',
+    search_placeholder: 'Rechercher des demandes...',
+    
+    // Back-office
+    dashboard: 'Tableau de Bord',
     logout: 'Déconnexion',
     login: 'Connexion',
     email: 'Email',
@@ -229,6 +258,7 @@ export const translations = {
     edit_transport: 'Modifier le Transport',
     guest_info: 'Informations Client',
     transport_info: 'Informations Transport',
+    reservation_ref: 'Réservation',
     
     // Validation
     required_field: 'Ce champ est requis',

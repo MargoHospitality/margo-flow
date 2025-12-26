@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { RequestCard } from '@/components/backoffice/RequestCard';
-import { Loader2, LogOut, Bell, Shield, AlertCircle } from 'lucide-react';
+import { Loader2, LogOut, Bell, Shield, AlertCircle, Search, Calendar, Clock, CalendarDays, List } from 'lucide-react';
 import margoflowLogo from '@/assets/margoflow-logo.png';
+import { format, isToday, isTomorrow, addDays, parseISO, isAfter, isBefore } from 'date-fns';
 
 interface TransportRequest {
   id: string;
@@ -34,13 +35,17 @@ interface TransportRequest {
   };
 }
 
+type MenuTab = 'today' | 'tomorrow' | 'upcoming' | 'pending' | 'all';
+
 export default function Backoffice() {
   const navigate = useNavigate();
   const { user, isLoading: authLoading, signOut, isSuperAdmin, isManager, riadIds, isActive } = useAuth();
   const { t } = useLanguage();
   const [requests, setRequests] = useState<TransportRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('pending');
+  const [activeTab, setActiveTab] = useState<MenuTab>('today');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -53,6 +58,14 @@ export default function Backoffice() {
       fetchRequests();
     }
   }, [user, isSuperAdmin, riadIds, isManager, isActive]);
+
+  // Set default tab based on pending requests
+  useEffect(() => {
+    const pendingCount = requests.filter(r => r.status === 'pending').length;
+    if (pendingCount > 0 && !isLoading) {
+      setActiveTab('pending');
+    }
+  }, [requests, isLoading]);
 
   async function fetchRequests() {
     setIsLoading(true);
@@ -75,7 +88,8 @@ export default function Backoffice() {
           reservation:reservations(guest_first_name, guest_last_name, check_in_date),
           transport_offer:transport_offers(name, name_fr, type)
         `)
-        .order('created_at', { ascending: false });
+        .order('transport_date', { ascending: true })
+        .order('transport_time', { ascending: true });
 
       // Filter by riad access if not super admin
       if (!isSuperAdmin && riadIds.length > 0) {
@@ -107,8 +121,61 @@ export default function Backoffice() {
     navigate('/auth');
   };
 
-  const pendingRequests = requests.filter(r => r.status === 'pending');
-  const allRequests = requests;
+  // Filter functions
+  const today = new Date();
+  const tomorrow = addDays(today, 1);
+  const dayPlusTwo = addDays(today, 2);
+  const dayPlusSeven = addDays(today, 7);
+
+  const filteredRequests = useMemo(() => {
+    let filtered = requests;
+
+    // Apply tab filter
+    switch (activeTab) {
+      case 'today':
+        filtered = requests.filter(r => {
+          const date = parseISO(r.transport_date);
+          return isToday(date) && (r.status === 'pending' || r.status === 'confirmed');
+        });
+        break;
+      case 'tomorrow':
+        filtered = requests.filter(r => {
+          const date = parseISO(r.transport_date);
+          return isTomorrow(date) && (r.status === 'pending' || r.status === 'confirmed');
+        });
+        break;
+      case 'upcoming':
+        filtered = requests.filter(r => {
+          const date = parseISO(r.transport_date);
+          return isAfter(date, tomorrow) && isBefore(date, addDays(dayPlusSeven, 1)) && (r.status === 'pending' || r.status === 'confirmed');
+        });
+        break;
+      case 'pending':
+        filtered = requests.filter(r => r.status === 'pending');
+        break;
+      case 'all':
+        filtered = requests;
+        break;
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(r => 
+        r.reservation.guest_last_name.toLowerCase().includes(query) ||
+        (r.reservation.guest_first_name?.toLowerCase().includes(query)) ||
+        r.reservation_id.toLowerCase().includes(query) ||
+        r.riad.name.toLowerCase().includes(query) ||
+        r.transport_offer.name.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [requests, activeTab, searchQuery, today, tomorrow, dayPlusTwo, dayPlusSeven]);
+
+  const pendingCount = requests.filter(r => r.status === 'pending').length;
+  const todayCount = requests.filter(r => isToday(parseISO(r.transport_date)) && (r.status === 'pending' || r.status === 'confirmed')).length;
+  const tomorrowCount = requests.filter(r => isTomorrow(parseISO(r.transport_date)) && (r.status === 'pending' || r.status === 'confirmed')).length;
 
   if (authLoading) {
     return (
@@ -136,6 +203,14 @@ export default function Backoffice() {
       </div>
     );
   }
+
+  const menuItems: { key: MenuTab; label: string; icon: React.ReactNode; count?: number }[] = [
+    { key: 'today', label: t('today_transfers'), icon: <Calendar className="h-4 w-4" />, count: todayCount },
+    { key: 'tomorrow', label: t('tomorrow_transfers'), icon: <Clock className="h-4 w-4" />, count: tomorrowCount },
+    { key: 'upcoming', label: t('upcoming_transfers'), icon: <CalendarDays className="h-4 w-4" /> },
+    { key: 'pending', label: t('pending_requests'), icon: <Bell className="h-4 w-4" />, count: pendingCount },
+    { key: 'all', label: t('all_requests'), icon: <List className="h-4 w-4" /> },
+  ];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -166,67 +241,74 @@ export default function Backoffice() {
 
       {/* Content */}
       <main className="flex-1 container mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2 mx-auto">
-            <TabsTrigger value="pending" className="relative">
-              {t('pending_requests')}
-              {pendingRequests.length > 0 && (
-                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
-                  {pendingRequests.length}
-                </span>
+        <div className="space-y-6">
+          {/* Menu Navigation */}
+          <div className="flex flex-wrap items-center gap-2">
+            {menuItems.map(item => (
+              <Button
+                key={item.key}
+                variant={activeTab === item.key ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setActiveTab(item.key)}
+                className="relative"
+              >
+                {item.icon}
+                <span className="ml-2 hidden sm:inline">{item.label}</span>
+                {item.count !== undefined && item.count > 0 && (
+                  <span className={`ml-1 inline-flex items-center justify-center min-w-[20px] h-5 text-xs font-medium rounded-full px-1.5 ${
+                    activeTab === item.key 
+                      ? 'bg-primary-foreground text-primary' 
+                      : 'bg-primary text-primary-foreground'
+                  }`}>
+                    {item.count}
+                  </span>
+                )}
+              </Button>
+            ))}
+            
+            {/* Search Toggle */}
+            <div className="ml-auto flex items-center gap-2">
+              {showSearch && (
+                <Input
+                  placeholder={t('search_placeholder')}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-48 h-9"
+                />
               )}
-            </TabsTrigger>
-            <TabsTrigger value="all">{t('all_requests')}</TabsTrigger>
-          </TabsList>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSearch(!showSearch)}
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
 
-          <TabsContent value="pending" className="space-y-4">
-            {isLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : pendingRequests.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Bell className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                <p>{t('no_requests')}</p>
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {pendingRequests.map(request => (
-                  <RequestCard
-                    key={request.id}
-                    request={request}
-                    isSuperAdmin={isSuperAdmin}
-                    onUpdate={fetchRequests}
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="all" className="space-y-4">
-            {isLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : allRequests.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Bell className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                <p>{t('no_requests')}</p>
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {allRequests.map(request => (
-                  <RequestCard
-                    key={request.id}
-                    request={request}
-                    isSuperAdmin={isSuperAdmin}
-                    onUpdate={fetchRequests}
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+          {/* Request Cards */}
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : filteredRequests.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Bell className="h-12 w-12 mx-auto mb-4 opacity-30" />
+              <p>{t('no_requests')}</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredRequests.map(request => (
+                <RequestCard
+                  key={request.id}
+                  request={request}
+                  isSuperAdmin={isSuperAdmin}
+                  onUpdate={fetchRequests}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </main>
 
       {/* Footer */}

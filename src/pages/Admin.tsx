@@ -577,7 +577,7 @@ export default function Admin() {
             </TabsTrigger>
             <TabsTrigger value="riads" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
-              <span className="hidden sm:inline">Riads</span>
+              <span className="hidden sm:inline">Properties</span>
             </TabsTrigger>
             <TabsTrigger value="transport" className="flex items-center gap-2">
               <Truck className="h-4 w-4" />
@@ -628,25 +628,20 @@ export default function Admin() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Assign Riads</Label>
-                  <div className="grid gap-2 max-h-40 overflow-y-auto border rounded-lg p-2">
-                    {riads.filter(r => r.is_active).map(riad => (
-                      <label key={riad.id} className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded cursor-pointer">
-                        <Checkbox
-                          checked={inviteRiads.includes(riad.id)}
-                          onCheckedChange={(checked) => {
-                            setInviteRiads(prev => 
-                              checked ? [...prev, riad.id] : prev.filter(id => id !== riad.id)
-                            );
-                          }}
-                        />
-                        <span className="text-sm">{riad.name}</span>
-                      </label>
-                    ))}
-                    {riads.filter(r => r.is_active).length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-2">No active riads</p>
-                    )}
-                  </div>
+                  <Label>Assign Properties</Label>
+                  <Select 
+                    value={inviteRiads[0] || ''} 
+                    onValueChange={(v) => setInviteRiads(v ? [v] : [])}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a property..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {riads.filter(r => r.is_active).map(riad => (
+                        <SelectItem key={riad.id} value={riad.id}>{riad.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button onClick={handleInviteUser} disabled={isInviting} className="w-full">
                   {isInviting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
@@ -750,22 +745,20 @@ export default function Admin() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Assigned Riads</Label>
-                    <div className="grid gap-2 max-h-40 overflow-y-auto border rounded-lg p-2">
-                      {riads.filter(r => r.is_active).map(riad => (
-                        <label key={riad.id} className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded cursor-pointer">
-                          <Checkbox
-                            checked={editRiads.includes(riad.id)}
-                            onCheckedChange={(checked) => {
-                              setEditRiads(prev => 
-                                checked ? [...prev, riad.id] : prev.filter(id => id !== riad.id)
-                              );
-                            }}
-                          />
-                          <span className="text-sm">{riad.name}</span>
-                        </label>
-                      ))}
-                    </div>
+                    <Label>Assigned Properties</Label>
+                    <Select 
+                      value={editRiads[0] || ''} 
+                      onValueChange={(v) => setEditRiads(v ? [v] : [])}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a property..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {riads.filter(r => r.is_active).map(riad => (
+                          <SelectItem key={riad.id} value={riad.id}>{riad.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1" onClick={() => setSelectedUser(null)}>
@@ -1052,12 +1045,12 @@ export default function Admin() {
               </CardContent>
             </Card>
 
-            {/* Transport Offers List */}
+            {/* Active Transport Offers List */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Truck className="h-5 w-5" />
-                  All Transport Offers
+                  Active Transport Offers
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -1067,10 +1060,10 @@ export default function Admin() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {offers.map(offer => (
+                    {offers.filter(o => o.is_active).map(offer => (
                       <div 
                         key={offer.id}
-                        className={`p-3 border rounded-lg flex items-center justify-between gap-2 ${!offer.is_active ? 'opacity-50' : ''}`}
+                        className="p-3 border rounded-lg flex items-center justify-between gap-2"
                       >
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{offer.name}</p>
@@ -1079,30 +1072,45 @@ export default function Admin() {
                           </p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => setEditingOffer(offer)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleToggleOfferActive(offer)}
-                          >
-                            {offer.is_active ? 'Deactivate' : 'Activate'}
-                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setEditingOffer(offer)}>Edit</Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleToggleOfferActive(offer)}>Deactivate</Button>
                         </div>
                       </div>
                     ))}
-                    {offers.length === 0 && (
-                      <p className="text-center text-muted-foreground py-4">No transport offers found</p>
+                    {offers.filter(o => o.is_active).length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">No active transport offers</p>
                     )}
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* Disabled Transport Offers */}
+            {offers.filter(o => !o.is_active).length > 0 && (
+              <Card className="border-dashed opacity-75">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg text-muted-foreground">
+                    <Truck className="h-5 w-5" />
+                    Disabled Offers
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {offers.filter(o => !o.is_active).map(offer => (
+                      <div key={offer.id} className="p-3 border rounded-lg flex items-center justify-between gap-2 opacity-60">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{offer.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {TRANSPORT_TYPES.find(t => t.value === offer.type)?.label || offer.type}
+                          </p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => handleToggleOfferActive(offer)}>Reactivate</Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Assign Offers to Riads */}
             <Card>
@@ -1212,6 +1220,24 @@ export default function Admin() {
                                     })}
                                     className="h-8 text-sm"
                                   />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Override Payment Mode</Label>
+                                  <Select
+                                    value={assignment.override_payment_mode || ''}
+                                    onValueChange={(v) => handleUpdateRiadOfferOverride(assignment.id, {
+                                      ...assignment,
+                                      override_payment_mode: v || null
+                                    })}
+                                  >
+                                    <SelectTrigger className="h-8 text-sm">
+                                      <SelectValue placeholder="Default" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="at_riad">At Property</SelectItem>
+                                      <SelectItem value="to_driver">To Driver</SelectItem>
+                                    </SelectContent>
+                                  </Select>
                                 </div>
                               </div>
                             )}
