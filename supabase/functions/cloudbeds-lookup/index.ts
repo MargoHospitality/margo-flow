@@ -9,6 +9,20 @@ const corsHeaders = {
 // MASSIBA ONLY - Only process this property ID
 const MASSIBA_PROPERTY_ID = '9462';
 
+// Rate limiting configuration
+const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_REQUESTS_PER_IP = 10;
+const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache for lookups
+const SUSPICIOUS_FAILURE_COUNT = 3;
+const SUSPICIOUS_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
+
+// Progressive cooldown: 10s, 30s, 2min
+const COOLDOWN_STEPS = [10, 30, 120];
+
+// In-memory stores (reset on function restart, which is fine for edge functions)
+const rateLimitStore = new Map<string, { count: number; firstRequest: number; failures: number; lastFailure: number; cooldownLevel: number }>();
+const lookupCache = new Map<string, { found: boolean; data?: any; timestamp: number }>();
+
 interface LookupResult {
   found: boolean;
   reservation?: {
@@ -23,9 +37,148 @@ interface LookupResult {
     riad_id: string;
     riad_name: string;
   };
-  source: 'local' | 'cloudbeds';
+  source: 'local' | 'cloudbeds' | 'cache';
   error?: string;
-  debug?: any;
+  rate_limited?: boolean;
+  retry_after?: number;
+  captcha_required?: boolean;
+}
+
+function getClientIP(req: Request): string {
+  // Check various headers for client IP
+  const cfConnectingIP = req.headers.get('cf-connecting-ip');
+  if (cfConnectingIP) return cfConnectingIP;
+  
+  const xForwardedFor = req.headers.get('x-forwarded-for');
+  if (xForwardedFor) return xForwardedFor.split(',')[0].trim();
+  
+  const xRealIP = req.headers.get('x-real-ip');
+  if (xRealIP) return xRealIP;
+  
+  return 'unknown';
+}
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number; captchaRequired: boolean } {
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+  
+  if (!entry) {
+    rateLimitStore.set(ip, { count: 1, firstRequest: now, failures: 0, lastFailure: 0, cooldownLevel: 0 });
+    return { allowed: true, captchaRequired: false };
+  }
+  
+  // Check if in cooldown
+  if (entry.cooldownLevel > 0 && entry.lastFailure > 0) {
+    const cooldownSeconds = COOLDOWN_STEPS[Math.min(entry.cooldownLevel - 1, COOLDOWN_STEPS.length - 1)];
+    const cooldownEnds = entry.lastFailure + (cooldownSeconds * 1000);
+    if (now < cooldownEnds) {
+      return { allowed: false, retryAfter: Math.ceil((cooldownEnds - now) / 1000), captchaRequired: true };
+    }
+  }
+  
+  // Reset window if expired
+  if (now - entry.firstRequest > RATE_LIMIT_WINDOW_MS) {
+    rateLimitStore.set(ip, { count: 1, firstRequest: now, failures: entry.failures, lastFailure: entry.lastFailure, cooldownLevel: entry.cooldownLevel });
+    return { allowed: true, captchaRequired: entry.failures >= SUSPICIOUS_FAILURE_COUNT };
+  }
+  
+  // Check if within limits
+  if (entry.count >= MAX_REQUESTS_PER_IP) {
+    return { allowed: false, retryAfter: Math.ceil((entry.firstRequest + RATE_LIMIT_WINDOW_MS - now) / 1000), captchaRequired: true };
+  }
+  
+  // Increment counter
+  entry.count++;
+  
+  // Check if captcha should be required due to suspicious failures
+  const requireCaptcha = entry.failures >= SUSPICIOUS_FAILURE_COUNT && 
+    (now - entry.lastFailure) < SUSPICIOUS_WINDOW_MS;
+  
+  return { allowed: true, captchaRequired: requireCaptcha };
+}
+
+function recordFailure(ip: string): void {
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+  
+  if (entry) {
+    entry.failures++;
+    entry.lastFailure = now;
+    
+    // Apply progressive cooldown after suspicious failures
+    if (entry.failures >= SUSPICIOUS_FAILURE_COUNT) {
+      entry.cooldownLevel = Math.min(entry.cooldownLevel + 1, COOLDOWN_STEPS.length);
+    }
+  }
+}
+
+function resetFailures(ip: string): void {
+  const entry = rateLimitStore.get(ip);
+  if (entry) {
+    entry.failures = 0;
+    entry.cooldownLevel = 0;
+  }
+}
+
+function getCacheKey(reservationId: string, checkInDate: string): string {
+  return `${reservationId}:${checkInDate}`;
+}
+
+function getCachedResult(reservationId: string, checkInDate: string): { found: boolean; data?: any } | null {
+  const key = getCacheKey(reservationId, checkInDate);
+  const cached = lookupCache.get(key);
+  
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return { found: cached.found, data: cached.data };
+  }
+  
+  // Clean up expired entry
+  if (cached) {
+    lookupCache.delete(key);
+  }
+  
+  return null;
+}
+
+function cacheResult(reservationId: string, checkInDate: string, found: boolean, data?: any): void {
+  const key = getCacheKey(reservationId, checkInDate);
+  lookupCache.set(key, { found, data, timestamp: Date.now() });
+  
+  // Cleanup old entries periodically (keep max 1000)
+  if (lookupCache.size > 1000) {
+    const now = Date.now();
+    for (const [k, v] of lookupCache.entries()) {
+      if (now - v.timestamp > CACHE_TTL_MS) {
+        lookupCache.delete(k);
+      }
+    }
+  }
+}
+
+async function verifyTurnstileToken(token: string): Promise<boolean> {
+  const secretKey = Deno.env.get('TURNSTILE_SECRET_KEY');
+  if (!secretKey) {
+    console.log('[cloudbeds-lookup] TURNSTILE_SECRET_KEY not configured, skipping verification');
+    return true; // Skip verification if not configured
+  }
+  
+  try {
+    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        secret: secretKey,
+        response: token,
+      }),
+    });
+    
+    const data = await response.json();
+    console.log('[cloudbeds-lookup] Turnstile verification result:', data.success);
+    return data.success === true;
+  } catch (error) {
+    console.error('[cloudbeds-lookup] Turnstile verification error:', error);
+    return false;
+  }
 }
 
 serve(async (req) => {
@@ -34,20 +187,86 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const clientIP = getClientIP(req);
+  console.log(`[cloudbeds-lookup] Request from IP: ${clientIP}`);
+
   try {
-    const { reservation_id, property_id } = await req.json();
+    const { reservation_id, property_id, check_in_date, turnstile_token } = await req.json();
     
     // CRITICAL: Ensure reservation_id is handled as a string
     const reservationIdStr = String(reservation_id).trim();
+    const checkInDateStr = check_in_date ? String(check_in_date).trim() : '';
     
     console.log(`[cloudbeds-lookup] ====== START LOOKUP ======`);
-    console.log(`[cloudbeds-lookup] Reservation ID: ${reservationIdStr} (type: ${typeof reservation_id})`);
+    console.log(`[cloudbeds-lookup] Reservation ID: ${reservationIdStr}`);
+    console.log(`[cloudbeds-lookup] Check-in Date: ${checkInDateStr}`);
     console.log(`[cloudbeds-lookup] Property ID: ${property_id}`);
 
     if (!reservationIdStr) {
       return new Response(
         JSON.stringify({ found: false, error: 'Reservation ID is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!checkInDateStr) {
+      return new Response(
+        JSON.stringify({ found: false, error: 'Check-in date is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check rate limit
+    const rateLimitResult = checkRateLimit(clientIP);
+    if (!rateLimitResult.allowed) {
+      console.log(`[cloudbeds-lookup] Rate limited IP: ${clientIP}, retry after: ${rateLimitResult.retryAfter}s`);
+      return new Response(
+        JSON.stringify({ 
+          found: false, 
+          rate_limited: true, 
+          retry_after: rateLimitResult.retryAfter,
+          captcha_required: true 
+        }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // If captcha is required, verify the token
+    if (rateLimitResult.captchaRequired) {
+      if (!turnstile_token) {
+        console.log(`[cloudbeds-lookup] Captcha required but no token provided for IP: ${clientIP}`);
+        return new Response(
+          JSON.stringify({ found: false, captcha_required: true }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      const isValidCaptcha = await verifyTurnstileToken(turnstile_token);
+      if (!isValidCaptcha) {
+        console.log(`[cloudbeds-lookup] Invalid captcha token for IP: ${clientIP}`);
+        recordFailure(clientIP);
+        return new Response(
+          JSON.stringify({ found: false, captcha_required: true, error: 'Invalid verification' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Check cache first
+    const cachedResult = getCachedResult(reservationIdStr, checkInDateStr);
+    if (cachedResult !== null) {
+      console.log(`[cloudbeds-lookup] Cache hit for ${reservationIdStr}:${checkInDateStr}, found: ${cachedResult.found}`);
+      if (!cachedResult.found) {
+        // Still count as failure for rate limiting purposes
+        recordFailure(clientIP);
+      }
+      return new Response(
+        JSON.stringify({ 
+          found: cachedResult.found, 
+          reservation: cachedResult.data,
+          source: 'cache'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -107,6 +326,21 @@ serve(async (req) => {
 
     if (localReservation) {
       console.log(`[cloudbeds-lookup] Found in local database: ${reservationIdStr}`);
+      
+      // Validate check-in date matches
+      if (localReservation.check_in_date !== checkInDateStr) {
+        console.log(`[cloudbeds-lookup] Check-in date mismatch: expected ${localReservation.check_in_date}, got ${checkInDateStr}`);
+        recordFailure(clientIP);
+        cacheResult(reservationIdStr, checkInDateStr, false);
+        // Generic error - don't reveal that the reservation exists
+        return new Response(
+          JSON.stringify({ found: false }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      resetFailures(clientIP);
+      
       const result: LookupResult = {
         found: true,
         reservation: {
@@ -123,6 +357,9 @@ serve(async (req) => {
         },
         source: 'local',
       };
+      
+      cacheResult(reservationIdStr, checkInDateStr, true, result.reservation);
+      
       return new Response(
         JSON.stringify(result),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -142,13 +379,9 @@ serve(async (req) => {
     }
 
     // Try to fetch the specific reservation using getReservation endpoint
-    // IMPORTANT: Use propertyID (not property_id) and reservationID (not reservation_id)
-    // The Cloudbeds API uses camelCase for query parameters
     const getReservationUrl = `https://hotels.cloudbeds.com/api/v1.1/getReservation?propertyID=${MASSIBA_PROPERTY_ID}&reservationID=${reservationIdStr}`;
     
     console.log(`[cloudbeds-lookup] Request URL: ${getReservationUrl}`);
-    console.log(`[cloudbeds-lookup] Request Method: GET`);
-    console.log(`[cloudbeds-lookup] Request Headers: Authorization: Bearer [REDACTED], Content-Type: application/json`);
     
     const getReservationResponse = await fetch(getReservationUrl, {
       method: 'GET',
@@ -206,37 +439,35 @@ serve(async (req) => {
             console.log(`[cloudbeds-lookup] Found ${reservations.length} reservations in list`);
             
             // Search for our reservation in the list
-            // Try multiple ID field possibilities
             const foundRes = reservations.find((r: any) => {
               const resId = String(r.reservationID || r.reservationId || r.reservation_id || '');
-              console.log(`[cloudbeds-lookup] Checking reservation ID: ${resId}`);
               return resId === reservationIdStr;
             });
             
             if (foundRes) {
               console.log(`[cloudbeds-lookup] Found reservation ${reservationIdStr} in list!`);
-              console.log(`[cloudbeds-lookup] Reservation data: ${JSON.stringify(foundRes).substring(0, 500)}`);
               
-              // Process the found reservation
-              return await processAndUpsertReservation(foundRes, massibaRiad, supabase);
+              // Validate check-in date
+              const cbCheckIn = foundRes.startDate || foundRes.checkInDate || foundRes.check_in_date || '';
+              if (cbCheckIn !== checkInDateStr) {
+                console.log(`[cloudbeds-lookup] Check-in date mismatch from Cloudbeds: expected ${cbCheckIn}, got ${checkInDateStr}`);
+                recordFailure(clientIP);
+                cacheResult(reservationIdStr, checkInDateStr, false);
+                return new Response(
+                  JSON.stringify({ found: false }),
+                  { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
+              
+              resetFailures(clientIP);
+              return await processAndUpsertReservation(foundRes, massibaRiad, supabase, checkInDateStr, reservationIdStr);
             } else {
-              // Log first few reservation IDs for debugging
-              const sampleIds = reservations.slice(0, 10).map((r: any) => 
-                String(r.reservationID || r.reservationId || r.reservation_id || 'unknown')
-              );
-              console.log(`[cloudbeds-lookup] Reservation ${reservationIdStr} NOT found in list. Sample IDs: ${sampleIds.join(', ')}`);
+              console.log(`[cloudbeds-lookup] Reservation ${reservationIdStr} NOT found in list.`);
+              recordFailure(clientIP);
+              cacheResult(reservationIdStr, checkInDateStr, false);
               
               return new Response(
-                JSON.stringify({ 
-                  found: false, 
-                  error: 'Reservation not found in Cloudbeds',
-                  debug: {
-                    searchedId: reservationIdStr,
-                    totalReservationsInRange: reservations.length,
-                    sampleIds: sampleIds,
-                    dateRange: { from: startDateStr, to: endDateStr }
-                  }
-                }),
+                JSON.stringify({ found: false }),
                 { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
               );
             }
@@ -247,17 +478,9 @@ serve(async (req) => {
       }
       
       // Both methods failed
+      recordFailure(clientIP);
       return new Response(
-        JSON.stringify({ 
-          found: false, 
-          error: 'Failed to fetch from Cloudbeds API',
-          debug: {
-            getReservationStatus: getResStatus,
-            getReservationError: getResText.substring(0, 500),
-            listStatus: listStatus,
-            listError: listText.substring(0, 500)
-          }
-        }),
+        JSON.stringify({ found: false }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -268,18 +491,35 @@ serve(async (req) => {
       console.log('[cloudbeds-lookup] Parsed getReservation response successfully');
 
       if (!cloudbedsData.success || !cloudbedsData.data) {
+        recordFailure(clientIP);
+        cacheResult(reservationIdStr, checkInDateStr, false);
         return new Response(
-          JSON.stringify({ found: false, error: 'Reservation not found in Cloudbeds' }),
+          JSON.stringify({ found: false }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      return await processAndUpsertReservation(cloudbedsData.data, massibaRiad, supabase);
+      // Validate check-in date
+      const cbData = cloudbedsData.data;
+      const cbCheckIn = cbData.startDate || cbData.checkInDate || cbData.check_in_date || '';
+      if (cbCheckIn !== checkInDateStr) {
+        console.log(`[cloudbeds-lookup] Check-in date mismatch: expected ${cbCheckIn}, got ${checkInDateStr}`);
+        recordFailure(clientIP);
+        cacheResult(reservationIdStr, checkInDateStr, false);
+        return new Response(
+          JSON.stringify({ found: false }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      resetFailures(clientIP);
+      return await processAndUpsertReservation(cbData, massibaRiad, supabase, checkInDateStr, reservationIdStr);
       
     } catch (parseError) {
       console.error('[cloudbeds-lookup] Failed to parse getReservation response:', parseError);
+      recordFailure(clientIP);
       return new Response(
-        JSON.stringify({ found: false, error: 'Invalid response from Cloudbeds' }),
+        JSON.stringify({ found: false }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -287,7 +527,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('[cloudbeds-lookup] Unexpected error:', error);
     return new Response(
-      JSON.stringify({ found: false, error: 'An unexpected error occurred' }),
+      JSON.stringify({ found: false }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -296,7 +536,9 @@ serve(async (req) => {
 async function processAndUpsertReservation(
   cbRes: any, 
   massibaRiad: { id: string; name: string; cloudbeds_property_id: string | null }, 
-  supabase: any
+  supabase: any,
+  checkInDateStr: string,
+  reservationIdStr: string
 ): Promise<Response> {
   console.log('[cloudbeds-lookup] Processing reservation:', JSON.stringify(cbRes).substring(0, 500));
   
@@ -376,6 +618,9 @@ async function processAndUpsertReservation(
     },
     source: 'cloudbeds',
   };
+
+  // Cache the successful result
+  cacheResult(reservationIdStr, checkInDateStr, true, result.reservation);
 
   console.log(`[cloudbeds-lookup] ====== LOOKUP SUCCESS ======`);
 
