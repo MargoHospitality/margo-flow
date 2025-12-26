@@ -135,8 +135,18 @@ export default function Admin() {
   }, [isSuperAdmin]);
 
   async function getAuthHeaders() {
+    // Use getUser() which validates the token server-side, then get a fresh session
+    const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+    if (userError || !currentUser) {
+      // Session is invalid, redirect to login
+      navigate('/auth');
+      throw new Error('Session expired. Please log in again.');
+    }
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error('Not authenticated');
+    if (!session) {
+      navigate('/auth');
+      throw new Error('Not authenticated');
+    }
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${session.access_token}`
