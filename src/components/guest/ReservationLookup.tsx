@@ -29,13 +29,12 @@ interface ReservationLookupProps {
 export function ReservationLookup({ riadId, cloudbedsPropertyId, onReservationFound }: ReservationLookupProps) {
   const { t } = useLanguage();
   const [reservationId, setReservationId] = useState('');
-  const [lastName, setLastName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!reservationId.trim() || !lastName.trim()) {
+    if (!reservationId.trim()) {
       toast.error(t('required_field'));
       return;
     }
@@ -43,7 +42,7 @@ export function ReservationLookup({ riadId, cloudbedsPropertyId, onReservationFo
     setIsLoading(true);
 
     try {
-      // Build query
+      // Build query (canonical identification = reservation_id + riad_id)
       let query = supabase
         .from('reservations')
         .select(`
@@ -55,8 +54,7 @@ export function ReservationLookup({ riadId, cloudbedsPropertyId, onReservationFo
           riad_id,
           riads!inner(name, cloudbeds_property_id)
         `)
-        .eq('reservation_id', reservationId.trim())
-        .ilike('guest_last_name', lastName.trim());
+        .eq('reservation_id', reservationId.trim());
 
       if (riadId) {
         query = query.eq('riad_id', riadId);
@@ -124,16 +122,6 @@ export function ReservationLookup({ riadId, cloudbedsPropertyId, onReservationFo
           
           if (lookupResult.found && lookupResult.reservation) {
             const cbRes = lookupResult.reservation;
-            
-            // Verify last name matches (case-insensitive)
-            const lastNameMatch = cbRes.guest_last_name?.toLowerCase().includes(lastName.trim().toLowerCase()) ||
-                                  lastName.trim().toLowerCase().includes(cbRes.guest_last_name?.toLowerCase() || '');
-            
-            if (!lastNameMatch) {
-              toast.error(t('reservation_not_found'));
-              return;
-            }
-            
             // Check if reservation is still valid
             if (cbRes.status === 'canceled' || cbRes.status === 'no_show') {
               toast.error(t('reservation_invalid'));
@@ -200,22 +188,6 @@ export function ReservationLookup({ riadId, cloudbedsPropertyId, onReservationFo
               required
             />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="lastName" className="font-medium">
-              {t('last_name_label')}
-            </Label>
-            <Input
-              id="lastName"
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder={t('last_name_placeholder')}
-              className="input-warm"
-              required
-            />
-          </div>
-
           <Button 
             type="submit" 
             className="w-full" 
