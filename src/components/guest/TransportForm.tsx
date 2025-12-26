@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/hooks/useLanguage';
-import { Loader2, AlertTriangle, Car, Check, ArrowLeft, Clock, Users, Calendar } from 'lucide-react';
+import { Loader2, AlertTriangle, Car, Check, ArrowLeft, Clock, Users, Calendar, Mail, Phone, Hash } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, addDays, isToday, parseISO } from 'date-fns';
 
@@ -56,6 +56,8 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
   const [transportTime, setTransportTime] = useState<string>('10:00');
   const [pax, setPax] = useState<number>(2);
   const [dynamicFields, setDynamicFields] = useState<Record<string, string>>({});
+  const [guestEmail, setGuestEmail] = useState<string>('');
+  const [guestWhatsapp, setGuestWhatsapp] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -73,6 +75,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
 
   async function fetchTransportOffers() {
     try {
+      // Only fetch offers assigned to this specific property
       const { data: riadOffers, error: riadError } = await supabase
         .from('riad_transport_offers')
         .select(`
@@ -94,7 +97,8 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
             default_extra_pax_price,
             default_payment_mode,
             day_start_time,
-            day_end_time
+            day_end_time,
+            is_active
           )
         `)
         .eq('riad_id', reservation.riad_id)
@@ -102,47 +106,30 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
 
       if (riadError) throw riadError;
 
+      // Only show offers that are assigned AND active at the transport_offers level
       if (!riadOffers || riadOffers.length === 0) {
-        const { data: defaultOffers, error: defaultError } = await supabase
-          .from('transport_offers')
-          .select('*');
-
-        if (defaultError) throw defaultError;
-
-        const mappedOffers: TransportOffer[] = (defaultOffers || []).map(offer => ({
-          id: offer.id,
-          name: offer.name,
-          name_fr: offer.name_fr,
-          type: offer.type,
-          fields_schema: (offer.fields_schema as unknown as FieldSchema[]) || [],
-          day_price: Number(offer.default_day_price),
-          night_price: Number(offer.default_night_price),
-          base_pax: offer.default_base_pax,
-          extra_pax_price: Number(offer.default_extra_pax_price),
-          payment_mode: offer.default_payment_mode as 'at_riad' | 'to_driver',
-          day_start_time: offer.day_start_time,
-          day_end_time: offer.day_end_time,
-        }));
-
-        setOffers(mappedOffers);
+        // No offers assigned to this property
+        setOffers([]);
       } else {
-        const mappedOffers: TransportOffer[] = riadOffers.map(ro => {
-          const offer = ro.transport_offers as any;
-          return {
-            id: offer.id,
-            name: offer.name,
-            name_fr: offer.name_fr,
-            type: offer.type,
-            fields_schema: (offer.fields_schema as unknown as FieldSchema[]) || [],
-            day_price: ro.override_day_price ?? Number(offer.default_day_price),
-            night_price: ro.override_night_price ?? Number(offer.default_night_price),
-            base_pax: ro.override_base_pax ?? offer.default_base_pax,
-            extra_pax_price: ro.override_extra_pax_price ?? Number(offer.default_extra_pax_price),
-            payment_mode: (ro.override_payment_mode ?? offer.default_payment_mode) as 'at_riad' | 'to_driver',
-            day_start_time: offer.day_start_time,
-            day_end_time: offer.day_end_time,
-          };
-        });
+        const mappedOffers: TransportOffer[] = riadOffers
+          .filter(ro => (ro.transport_offers as any).is_active) // Only active offers
+          .map(ro => {
+            const offer = ro.transport_offers as any;
+            return {
+              id: offer.id,
+              name: offer.name,
+              name_fr: offer.name_fr,
+              type: offer.type,
+              fields_schema: (offer.fields_schema as unknown as FieldSchema[]) || [],
+              day_price: ro.override_day_price ?? Number(offer.default_day_price),
+              night_price: ro.override_night_price ?? Number(offer.default_night_price),
+              base_pax: ro.override_base_pax ?? offer.default_base_pax,
+              extra_pax_price: ro.override_extra_pax_price ?? Number(offer.default_extra_pax_price),
+              payment_mode: (ro.override_payment_mode ?? offer.default_payment_mode) as 'at_riad' | 'to_driver',
+              day_start_time: offer.day_start_time,
+              day_end_time: offer.day_end_time,
+            };
+          });
 
         setOffers(mappedOffers);
       }
@@ -189,6 +176,18 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
       return;
     }
 
+    // Validate email
+    if (!guestEmail.trim()) {
+      toast.error(`${t('guest_email_label')} ${t('required_field')}`);
+      return;
+    }
+
+    // Validate WhatsApp
+    if (!guestWhatsapp.trim()) {
+      toast.error(`${t('guest_whatsapp_label')} ${t('required_field')}`);
+      return;
+    }
+
     for (const field of selectedOffer.fields_schema) {
       if (field.required && !dynamicFields[field.key]?.trim()) {
         toast.error(`${language === 'fr' ? field.label_fr : field.label} ${t('required_field')}`);
@@ -199,6 +198,12 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
     setIsSubmitting(true);
 
     try {
+      const payloadDetails = {
+        ...dynamicFields,
+        guest_email: guestEmail.trim(),
+        guest_whatsapp: guestWhatsapp.trim(),
+      };
+
       const { error } = await supabase
         .from('transport_requests')
         .insert({
@@ -210,7 +215,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
           pax,
           computed_price: computedPrice,
           payment_mode: selectedOffer.payment_mode,
-          payload_details: dynamicFields,
+          payload_details: payloadDetails,
           status: 'pending',
         });
 
@@ -252,6 +257,10 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
             <p className="text-sm text-muted-foreground">
               {format(checkInDate, 'PPP')}
             </p>
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <Hash className="h-3 w-3" />
+              {reservation.reservation_id}
+            </p>
           </div>
         </div>
       </div>
@@ -278,157 +287,212 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
         </div>
       )}
 
+      {/* No offers available message */}
+      {offers.length === 0 && !isLoading && (
+        <div className="card-elevated p-6 text-center">
+          <p className="text-muted-foreground">
+            {language === 'fr' 
+              ? 'Aucune offre de transport disponible pour cette propriété.'
+              : 'No transport offers available for this property.'}
+          </p>
+        </div>
+      )}
+
       {/* Transport Form */}
-      <div className="card-elevated p-6 md:p-8">
-        <h2 className="font-serif text-xl md:text-2xl text-foreground mb-6">
-          {t('transport_details')}
-        </h2>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Transport Type Selection */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium text-foreground">{t('select_transport_type')}</Label>
-            <div className="grid grid-cols-1 gap-3">
-              {offers.map(offer => (
-                <button
-                  key={offer.id}
-                  type="button"
-                  onClick={() => setSelectedOfferId(offer.id)}
-                  className={`p-4 rounded-xl border-2 text-left transition-all active:scale-[0.98] ${
-                    selectedOfferId === offer.id
-                      ? 'border-primary bg-accent/50'
-                      : 'border-border hover:border-primary/50 bg-background'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        selectedOfferId === offer.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                      }`}>
-                        <Car className="h-5 w-5" />
+      {offers.length > 0 && (
+        <div className="card-elevated p-6 md:p-8">
+          <h2 className="font-serif text-xl md:text-2xl text-foreground mb-6">
+            {t('transport_details')}
+          </h2>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Transport Type Selection */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium text-foreground">{t('select_transport_type')}</Label>
+              <div className="grid grid-cols-1 gap-3">
+                {offers.map(offer => (
+                  <button
+                    key={offer.id}
+                    type="button"
+                    onClick={() => setSelectedOfferId(offer.id)}
+                    className={`p-4 rounded-xl border-2 text-left transition-all active:scale-[0.98] ${
+                      selectedOfferId === offer.id
+                        ? 'border-primary bg-accent/50'
+                        : 'border-border hover:border-primary/50 bg-background'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          selectedOfferId === offer.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                        }`}>
+                          <Car className="h-5 w-5" />
+                        </div>
+                        <span className="font-medium text-foreground">
+                          {language === 'fr' && offer.name_fr ? offer.name_fr : offer.name}
+                        </span>
                       </div>
-                      <span className="font-medium text-foreground">
-                        {language === 'fr' && offer.name_fr ? offer.name_fr : offer.name}
+                      <span className="text-sm text-muted-foreground">
+                        {offer.day_price} MAD
                       </span>
                     </div>
-                    <span className="text-sm text-muted-foreground">
-                      {offer.day_price} MAD
-                    </span>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Date and Time Row */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-foreground flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                {t('transport_date')}
-              </Label>
-              <Select value={transportDate} onValueChange={setTransportDate}>
-                <SelectTrigger className="h-14 rounded-xl border-2 text-base">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {allowedDates.map(date => (
-                    <SelectItem key={date} value={date}>
-                      {format(parseISO(date), 'MMM d')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Date and Time Row */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  {t('transport_date')}
+                </Label>
+                <Select value={transportDate} onValueChange={setTransportDate}>
+                  <SelectTrigger className="h-14 rounded-xl border-2 text-base">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allowedDates.map(date => (
+                      <SelectItem key={date} value={date}>
+                        {format(parseISO(date), 'MMM d')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="transportTime" className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  {t('transport_time')}
+                </Label>
+                <Input
+                  id="transportTime"
+                  type="time"
+                  value={transportTime}
+                  onChange={(e) => setTransportTime(e.target.value)}
+                  className="input-mobile"
+                  required
+                />
+              </div>
             </div>
-            
+
+            {/* Passengers */}
             <div className="space-y-2">
-              <Label htmlFor="transportTime" className="text-sm font-medium text-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                {t('transport_time')}
+              <Label htmlFor="pax" className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                {t('passengers')}
               </Label>
               <Input
-                id="transportTime"
-                type="time"
-                value={transportTime}
-                onChange={(e) => setTransportTime(e.target.value)}
+                id="pax"
+                type="number"
+                min={1}
+                max={10}
+                value={pax}
+                onChange={(e) => setPax(Math.max(1, parseInt(e.target.value) || 1))}
                 className="input-mobile"
                 required
               />
             </div>
-          </div>
 
-          {/* Passengers */}
-          <div className="space-y-2">
-            <Label htmlFor="pax" className="text-sm font-medium text-foreground flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              {t('passengers')}
-            </Label>
-            <Input
-              id="pax"
-              type="number"
-              min={1}
-              max={10}
-              value={pax}
-              onChange={(e) => setPax(Math.max(1, parseInt(e.target.value) || 1))}
-              className="input-mobile"
-              required
-            />
-          </div>
-
-          {/* Dynamic Fields */}
-          {selectedOffer?.fields_schema.map(field => (
-            <div key={field.key} className="space-y-2">
-              <Label htmlFor={field.key} className="text-sm font-medium text-foreground">
-                {language === 'fr' ? field.label_fr : field.label}
-                {field.required && <span className="text-destructive ml-1">*</span>}
-              </Label>
-              <Input
-                id={field.key}
-                type={field.type}
-                value={dynamicFields[field.key] || ''}
-                onChange={(e) => handleDynamicFieldChange(field.key, e.target.value)}
-                className="input-mobile"
-                required={field.required}
-              />
-            </div>
-          ))}
-
-          {/* Price Summary */}
-          {selectedOffer && (
-            <div className="p-5 rounded-2xl bg-accent/50 border border-border">
-              <div className="flex justify-between items-center">
-                <span className="font-medium text-foreground">{t('total_price')}</span>
-                <span className="text-3xl font-serif font-semibold text-primary">
-                  {computedPrice.toFixed(0)} MAD
-                </span>
+            {/* Dynamic Fields */}
+            {selectedOffer?.fields_schema.map(field => (
+              <div key={field.key} className="space-y-2">
+                <Label htmlFor={field.key} className="text-sm font-medium text-foreground">
+                  {language === 'fr' ? field.label_fr : field.label}
+                  {field.required && <span className="text-destructive ml-1">*</span>}
+                </Label>
+                <Input
+                  id={field.key}
+                  type={field.type}
+                  value={dynamicFields[field.key] || ''}
+                  onChange={(e) => handleDynamicFieldChange(field.key, e.target.value)}
+                  className="input-mobile"
+                  required={field.required}
+                />
               </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                {selectedOffer.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
-              </p>
-            </div>
-          )}
+            ))}
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={onBack} 
-              className="flex-1 h-14 rounded-xl text-base"
-            >
-              <ArrowLeft className="mr-2 h-5 w-5" />
-              {t('back')}
-            </Button>
-            <Button
-              type="submit"
-              className="flex-1 h-14 rounded-xl text-base font-medium"
-              disabled={isSubmitting || !selectedOfferId}
-            >
-              {isSubmitting ? <Loader2 className="animate-spin h-5 w-5" /> : t('submit')}
-            </Button>
-          </div>
-        </form>
-      </div>
+            {/* Guest Contact Information */}
+            <div className="space-y-4 p-4 rounded-xl bg-secondary/30 border border-border">
+              <div>
+                <h3 className="font-medium text-foreground">{t('guest_contact_title')}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{t('guest_contact_explanation')}</p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="guestEmail" className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  {t('guest_email_label')}
+                  <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="guestEmail"
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  placeholder={t('guest_email_placeholder')}
+                  className="input-mobile"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="guestWhatsapp" className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  {t('guest_whatsapp_label')}
+                  <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="guestWhatsapp"
+                  type="tel"
+                  value={guestWhatsapp}
+                  onChange={(e) => setGuestWhatsapp(e.target.value)}
+                  placeholder={t('guest_whatsapp_placeholder')}
+                  className="input-mobile"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Price Summary */}
+            {selectedOffer && (
+              <div className="p-5 rounded-2xl bg-accent/50 border border-border">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium text-foreground">{t('total_price')}</span>
+                  <span className="text-3xl font-serif font-semibold text-primary">
+                    {computedPrice.toFixed(0)} MAD
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {selectedOffer.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
+                </p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={onBack} 
+                className="flex-1 h-14 rounded-xl text-base"
+              >
+                <ArrowLeft className="mr-2 h-5 w-5" />
+                {t('back')}
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 h-14 rounded-xl text-base font-medium"
+                disabled={isSubmitting || !selectedOfferId}
+              >
+                {isSubmitting ? <Loader2 className="animate-spin h-5 w-5" /> : t('submit')}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
