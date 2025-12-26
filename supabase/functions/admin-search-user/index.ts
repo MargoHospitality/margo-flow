@@ -14,6 +14,39 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAdmin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     
+    const body = await req.json();
+    const { action } = body;
+    
+    // Bootstrap first super_admin - NO AUTH REQUIRED (only works once)
+    if (action === 'bootstrap') {
+      const BOOTSTRAP_EMAIL = 'baptiste@margo-hospitality.com';
+      
+      // Check if any super_admin already exists
+      const { data: existingAdmins } = await supabaseAdmin.from('user_roles').select('id').eq('role', 'super_admin').limit(1);
+      if (existingAdmins && existingAdmins.length > 0) {
+        return new Response(JSON.stringify({ error: 'Bootstrap already completed - super_admin exists' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      // Check if user already exists
+      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+      const existingUser = users.find(u => u.email?.toLowerCase() === BOOTSTRAP_EMAIL.toLowerCase());
+      if (existingUser) {
+        return new Response(JSON.stringify({ error: 'User already exists. Try logging in or resetting password.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      // Invite the bootstrap user
+      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(BOOTSTRAP_EMAIL, {
+        redirectTo: `${req.headers.get('origin') || supabaseUrl}/auth`
+      });
+      
+      if (inviteError) {
+        return new Response(JSON.stringify({ error: inviteError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      return new Response(JSON.stringify({ success: true, message: 'Invitation sent to ' + BOOTSTRAP_EMAIL }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    // All other actions require super_admin authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -32,9 +65,8 @@ Deno.serve(async (req) => {
     if (roleData?.role !== 'super_admin') {
       return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-
-    const body = await req.json();
-    const { action, email, userId, fullName, role, riadIds } = body;
+    
+    const { email, userId, fullName, role, riadIds } = body;
 
     // Search user
     if (!action || action === 'search') {
