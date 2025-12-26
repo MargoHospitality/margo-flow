@@ -108,6 +108,37 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
         }
       }
 
+      // Add internal note to Cloudbeds (non-blocking, Massiba only)
+      try {
+        const noteResult = await supabase.functions.invoke('cloudbeds-add-note', {
+          body: {
+            transport_request_id: request.id,
+            reservation_id: request.reservation_id,
+            riad_name: request.riad.name,
+            guest_name: `${request.reservation.guest_first_name || ''} ${request.reservation.guest_last_name}`.trim(),
+            transport_offer_name: request.transport_offer.name,
+            transport_date: format(parseISO(request.transport_date), 'dd/MM/yyyy'),
+            transport_time: request.transport_time,
+            flight_train_number: request.payload_details?.flight_number || request.payload_details?.train_number,
+            payment_mode: request.payment_mode,
+            guest_comment: request.guest_comment,
+            price: Number(request.computed_price),
+          },
+        });
+        
+        if (noteResult.data?.success && noteResult.data?.note_created) {
+          console.log('Cloudbeds note added successfully');
+        } else if (noteResult.data?.skipped_reason) {
+          console.log('Cloudbeds note skipped:', noteResult.data.skipped_reason);
+        } else if (noteResult.data?.error) {
+          console.error('Cloudbeds note error:', noteResult.data.error);
+          // Don't show toast - error is logged in Cloudbeds Operations panel
+        }
+      } catch (noteError) {
+        console.error('Error adding Cloudbeds note:', noteError);
+        // Non-blocking: confirmation still succeeds even if note fails
+      }
+
       toast.success(t('confirm_transport'));
       onUpdate();
     } catch (error) {
