@@ -11,6 +11,7 @@ interface Riad {
   id: string;
   name: string;
   manager_whatsapp: string | null;
+  cloudbeds_property_id?: string | null;
 }
 
 interface ReservationData {
@@ -36,7 +37,6 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
   const [riadSearch, setRiadSearch] = useState('');
   const [selectedRiad, setSelectedRiad] = useState<Riad | null>(null);
   const [reservationId, setReservationId] = useState('');
-  const [lastName, setLastName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
   // Autocomplete state
@@ -92,7 +92,7 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
     try {
       const { data, error } = await supabase
         .from('riads')
-        .select('id, name, manager_whatsapp')
+        .select('id, name, manager_whatsapp, cloudbeds_property_id')
         .order('name');
 
       if (error) throw error;
@@ -125,13 +125,13 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedRiad) {
       toast.error(t('select_riad'));
       return;
     }
-    
-    if (!reservationId.trim() || !lastName.trim()) {
+
+    if (!reservationId.trim()) {
       toast.error(t('required_field'));
       return;
     }
@@ -139,6 +139,8 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
     setIsLoading(true);
 
     try {
+      const reservationIdStr = reservationId.trim();
+
       const { data, error } = await supabase
         .from('reservations')
         .select(`
@@ -150,19 +152,46 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
           riad_id,
           riads!inner(name)
         `)
-        .eq('reservation_id', reservationId.trim())
+        .eq('reservation_id', reservationIdStr)
         .eq('riad_id', selectedRiad.id)
-        .ilike('guest_last_name', lastName.trim())
         .maybeSingle();
 
       if (error) throw error;
 
-      if (!data) {
+      let resolved = data;
+
+      // If not found locally, try Cloudbeds on-demand lookup for Massiba only
+      if (!resolved && selectedRiad.cloudbeds_property_id === '9462') {
+        const { data: lookupData, error: lookupError } = await supabase.functions.invoke('cloudbeds-lookup', {
+          body: {
+            reservation_id: reservationIdStr,
+            property_id: '9462',
+          },
+        });
+
+        if (lookupError) {
+          console.error('Cloudbeds lookup error:', lookupError);
+        }
+
+        if (lookupData?.found && lookupData?.reservation) {
+          resolved = {
+            reservation_id: lookupData.reservation.reservation_id,
+            guest_first_name: lookupData.reservation.guest_first_name,
+            guest_last_name: lookupData.reservation.guest_last_name,
+            check_in_date: lookupData.reservation.check_in_date,
+            status: lookupData.reservation.status,
+            riad_id: lookupData.reservation.riad_id,
+            riads: { name: lookupData.reservation.riad_name },
+          } as any;
+        }
+      }
+
+      if (!resolved) {
         toast.error(t('reservation_not_found'));
         return;
       }
 
-      if (data.status === 'canceled' || data.status === 'no_show') {
+      if (resolved.status === 'canceled' || resolved.status === 'no_show') {
         toast.error(t('reservation_invalid'));
         return;
       }
@@ -170,7 +199,7 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
       const { data: existingRequest } = await supabase
         .from('transport_requests')
         .select('id, status')
-        .eq('reservation_id', data.reservation_id)
+        .eq('reservation_id', resolved.reservation_id)
         .in('status', ['pending', 'confirmed'])
         .maybeSingle();
 
@@ -179,14 +208,17 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
         return;
       }
 
-      onReservationFound({
-        reservation_id: data.reservation_id,
-        guest_first_name: data.guest_first_name,
-        guest_last_name: data.guest_last_name,
-        check_in_date: data.check_in_date,
-        riad_id: data.riad_id,
-        riad_name: (data.riads as { name: string }).name,
-      }, selectedRiad.manager_whatsapp || undefined);
+      onReservationFound(
+        {
+          reservation_id: resolved.reservation_id,
+          guest_first_name: resolved.guest_first_name,
+          guest_last_name: resolved.guest_last_name,
+          check_in_date: resolved.check_in_date,
+          riad_id: resolved.riad_id,
+          riad_name: (resolved.riads as { name: string }).name,
+        },
+        selectedRiad.manager_whatsapp || undefined
+      );
     } catch (error) {
       console.error('Error looking up reservation:', error);
       toast.error(t('error'));
@@ -290,23 +322,6 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
             required
           />
         </div>
-
-        {/* Last Name */}
-        <div className="space-y-2">
-          <Label htmlFor="lastName" className="text-sm font-medium text-foreground">
-            {t('last_name_label')}
-          </Label>
-          <Input
-            id="lastName"
-            type="text"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            placeholder={t('last_name_placeholder')}
-            className="input-mobile"
-            required
-          />
-        </div>
-
         <Button 
           type="submit" 
           className="w-full h-14 text-base font-medium rounded-xl mt-2" 
