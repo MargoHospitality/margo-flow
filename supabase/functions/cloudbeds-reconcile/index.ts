@@ -140,19 +140,23 @@ serve(async (req) => {
       return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Calculate date range (today + 60 days)
+    // Calculate date range (today - 7 days to today + 365 days for wide coverage)
     const today = new Date();
+    const pastDate = new Date();
+    pastDate.setDate(today.getDate() - 7);
     const futureDate = new Date();
-    futureDate.setDate(today.getDate() + 60);
+    futureDate.setDate(today.getDate() + 365);
 
-    const startDate = today.toISOString().split('T')[0];
+    const startDate = pastDate.toISOString().split('T')[0];
     const endDate = futureDate.toISOString().split('T')[0];
 
-    console.log(`[cloudbeds-reconcile] Fetching reservations from ${startDate} to ${endDate}`);
-
-    // Call Cloudbeds API to get reservations
-    const cloudbedsUrl = `https://hotels.cloudbeds.com/api/v1.1/getReservations?propertyID=${MASSIBA_PROPERTY_ID}&checkInFrom=${startDate}&checkInTo=${endDate}&status=not_canceled`;
+    // Build URL without status filter - Cloudbeds API may not support "not_canceled"
+    // Use propertyID as string
+    const cloudbedsUrl = `https://hotels.cloudbeds.com/api/v1.1/getReservations?propertyID=${MASSIBA_PROPERTY_ID}&checkInFrom=${startDate}&checkInTo=${endDate}`;
     
+    console.log(`[cloudbeds-reconcile] Request URL: ${cloudbedsUrl}`);
+    console.log(`[cloudbeds-reconcile] Fetching reservations from ${startDate} to ${endDate} (no status filter)`);
+
     const cloudbedsResponse = await fetch(cloudbedsUrl, {
       method: 'GET',
       headers: {
@@ -161,9 +165,13 @@ serve(async (req) => {
       },
     });
 
+    console.log(`[cloudbeds-reconcile] Cloudbeds response status: ${cloudbedsResponse.status}`);
+
+    const responseText = await cloudbedsResponse.text();
+    console.log(`[cloudbeds-reconcile] Cloudbeds response body (first 500 chars): ${responseText.substring(0, 500)}`);
+
     if (!cloudbedsResponse.ok) {
-      const errorText = await cloudbedsResponse.text();
-      console.error(`[cloudbeds-reconcile] Cloudbeds API error: ${cloudbedsResponse.status}`, errorText);
+      console.error(`[cloudbeds-reconcile] HTTP error: ${cloudbedsResponse.status}`, responseText);
 
       const result: ReconcileResult = {
         success: false,
@@ -172,7 +180,7 @@ serve(async (req) => {
         reservations_created: 0,
         reservations_updated: 0,
         transport_requests_cancelled: 0,
-        error: `Cloudbeds API error: ${cloudbedsResponse.status}`,
+        error: `Cloudbeds API HTTP error: ${cloudbedsResponse.status} - ${responseText.substring(0, 200)}`,
       };
 
       if (syncRunId) {
@@ -185,10 +193,11 @@ serve(async (req) => {
       return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const cloudbedsData = await cloudbedsResponse.json();
-    console.log('[cloudbeds-reconcile] Cloudbeds response received');
-
-    if (!cloudbedsData.success) {
+    let cloudbedsData;
+    try {
+      cloudbedsData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error(`[cloudbeds-reconcile] Failed to parse JSON:`, parseError);
       const result: ReconcileResult = {
         success: false,
         property_id: MASSIBA_PROPERTY_ID,
@@ -196,7 +205,33 @@ serve(async (req) => {
         reservations_created: 0,
         reservations_updated: 0,
         transport_requests_cancelled: 0,
-        error: 'Cloudbeds API returned unsuccessful response',
+        error: `Failed to parse Cloudbeds response: ${responseText.substring(0, 200)}`,
+      };
+
+      if (syncRunId) {
+        await supabase
+          .from('cloudbeds_sync_runs')
+          .update({ status: 'failed', error_message: result.error, completed_at: new Date().toISOString() })
+          .eq('id', syncRunId);
+      }
+
+      return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    console.log(`[cloudbeds-reconcile] Parsed response - success: ${cloudbedsData.success}, hasData: ${!!cloudbedsData.data}, dataLength: ${Array.isArray(cloudbedsData.data) ? cloudbedsData.data.length : 'not array'}`);
+
+    if (!cloudbedsData.success) {
+      const errorMsg = cloudbedsData.message || cloudbedsData.error || 'Unknown error';
+      console.error(`[cloudbeds-reconcile] API returned success=false:`, errorMsg);
+      
+      const result: ReconcileResult = {
+        success: false,
+        property_id: MASSIBA_PROPERTY_ID,
+        reservations_processed: 0,
+        reservations_created: 0,
+        reservations_updated: 0,
+        transport_requests_cancelled: 0,
+        error: `Cloudbeds API error: ${errorMsg}`,
       };
 
       if (syncRunId) {
