@@ -9,20 +9,6 @@ const corsHeaders = {
 // MASSIBA ONLY - Only process this property ID
 const MASSIBA_PROPERTY_ID = '9462';
 
-interface CloudbedsReservation {
-  reservationID: string;
-  propertyID: string;
-  guestName: string;
-  guestFirstName?: string;
-  guestLastName?: string;
-  startDate: string;
-  endDate: string;
-  status: string;
-  source?: string;
-  nights?: number;
-  countryCode?: string;
-}
-
 interface LookupResult {
   found: boolean;
   reservation?: {
@@ -39,6 +25,7 @@ interface LookupResult {
   };
   source: 'local' | 'cloudbeds';
   error?: string;
+  debug?: any;
 }
 
 serve(async (req) => {
@@ -49,9 +36,15 @@ serve(async (req) => {
 
   try {
     const { reservation_id, property_id } = await req.json();
-    console.log(`[cloudbeds-lookup] Received request for reservation ${reservation_id}, property ${property_id}`);
+    
+    // CRITICAL: Ensure reservation_id is handled as a string
+    const reservationIdStr = String(reservation_id).trim();
+    
+    console.log(`[cloudbeds-lookup] ====== START LOOKUP ======`);
+    console.log(`[cloudbeds-lookup] Reservation ID: ${reservationIdStr} (type: ${typeof reservation_id})`);
+    console.log(`[cloudbeds-lookup] Property ID: ${property_id}`);
 
-    if (!reservation_id) {
+    if (!reservationIdStr) {
       return new Response(
         JSON.stringify({ found: false, error: 'Reservation ID is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -86,6 +79,8 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log(`[cloudbeds-lookup] Massiba riad found: id=${massibaRiad.id}, name=${massibaRiad.name}`);
 
     // Step 1: Check local database first
     const { data: localReservation, error: localError } = await supabase
@@ -102,7 +97,7 @@ serve(async (req) => {
         riad_id,
         riads(name)
       `)
-      .eq('reservation_id', reservation_id)
+      .eq('reservation_id', reservationIdStr)
       .eq('riad_id', massibaRiad.id)
       .maybeSingle();
 
@@ -111,7 +106,7 @@ serve(async (req) => {
     }
 
     if (localReservation) {
-      console.log(`[cloudbeds-lookup] Found in local database: ${reservation_id}`);
+      console.log(`[cloudbeds-lookup] Found in local database: ${reservationIdStr}`);
       const result: LookupResult = {
         found: true,
         reservation: {
@@ -135,20 +130,27 @@ serve(async (req) => {
     }
 
     // Step 2: Not found locally - Call Cloudbeds API
-    console.log(`[cloudbeds-lookup] Not found locally, calling Cloudbeds API for ${reservation_id}`);
+    console.log(`[cloudbeds-lookup] Not found locally, calling Cloudbeds API...`);
     
     const cloudbedsApiKey = Deno.env.get('CLOUDBEDS_API_KEY');
     if (!cloudbedsApiKey) {
+      console.error('[cloudbeds-lookup] CLOUDBEDS_API_KEY not configured');
       return new Response(
         JSON.stringify({ found: false, error: 'Cloudbeds API not configured' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Call Cloudbeds API to get specific reservation
-    const cloudbedsUrl = `https://hotels.cloudbeds.com/api/v1.1/getReservation?propertyID=${MASSIBA_PROPERTY_ID}&reservationID=${reservation_id}`;
+    // Try to fetch the specific reservation using getReservation endpoint
+    // IMPORTANT: Use propertyID (not property_id) and reservationID (not reservation_id)
+    // The Cloudbeds API uses camelCase for query parameters
+    const getReservationUrl = `https://hotels.cloudbeds.com/api/v1.1/getReservation?propertyID=${MASSIBA_PROPERTY_ID}&reservationID=${reservationIdStr}`;
     
-    const cloudbedsResponse = await fetch(cloudbedsUrl, {
+    console.log(`[cloudbeds-lookup] Request URL: ${getReservationUrl}`);
+    console.log(`[cloudbeds-lookup] Request Method: GET`);
+    console.log(`[cloudbeds-lookup] Request Headers: Authorization: Bearer [REDACTED], Content-Type: application/json`);
+    
+    const getReservationResponse = await fetch(getReservationUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${cloudbedsApiKey}`,
@@ -156,108 +158,229 @@ serve(async (req) => {
       },
     });
 
-    if (!cloudbedsResponse.ok) {
-      const errorText = await cloudbedsResponse.text();
-      console.error(`[cloudbeds-lookup] Cloudbeds API error: ${cloudbedsResponse.status}`, errorText);
+    const getResStatus = getReservationResponse.status;
+    const getResText = await getReservationResponse.text();
+    
+    console.log(`[cloudbeds-lookup] getReservation Response Status: ${getResStatus}`);
+    console.log(`[cloudbeds-lookup] getReservation Response Body: ${getResText.substring(0, 1000)}`);
+
+    // If getReservation didn't work, try listing reservations as fallback
+    if (!getReservationResponse.ok || getResText.includes('"success":false')) {
+      console.log(`[cloudbeds-lookup] getReservation failed, trying getReservations list with wide date range...`);
       
-      if (cloudbedsResponse.status === 404 || errorText.includes('not found')) {
+      // Calculate date range: today - 7 days to today + 365 days
+      const today = new Date();
+      const startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 7);
+      const endDate = new Date(today);
+      endDate.setDate(endDate.getDate() + 365);
+      
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
+      // Try getReservations list endpoint
+      const listUrl = `https://hotels.cloudbeds.com/api/v1.1/getReservations?propertyID=${MASSIBA_PROPERTY_ID}&checkInFrom=${startDateStr}&checkInTo=${endDateStr}&pageSize=100`;
+      
+      console.log(`[cloudbeds-lookup] List Request URL: ${listUrl}`);
+      
+      const listResponse = await fetch(listUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${cloudbedsApiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const listStatus = listResponse.status;
+      const listText = await listResponse.text();
+      
+      console.log(`[cloudbeds-lookup] getReservations Response Status: ${listStatus}`);
+      console.log(`[cloudbeds-lookup] getReservations Response Body (first 2000 chars): ${listText.substring(0, 2000)}`);
+      
+      if (listResponse.ok) {
+        try {
+          const listData = JSON.parse(listText);
+          
+          if (listData.success && listData.data) {
+            const reservations = Array.isArray(listData.data) ? listData.data : [];
+            console.log(`[cloudbeds-lookup] Found ${reservations.length} reservations in list`);
+            
+            // Search for our reservation in the list
+            // Try multiple ID field possibilities
+            const foundRes = reservations.find((r: any) => {
+              const resId = String(r.reservationID || r.reservationId || r.reservation_id || '');
+              console.log(`[cloudbeds-lookup] Checking reservation ID: ${resId}`);
+              return resId === reservationIdStr;
+            });
+            
+            if (foundRes) {
+              console.log(`[cloudbeds-lookup] Found reservation ${reservationIdStr} in list!`);
+              console.log(`[cloudbeds-lookup] Reservation data: ${JSON.stringify(foundRes).substring(0, 500)}`);
+              
+              // Process the found reservation
+              return await processAndUpsertReservation(foundRes, massibaRiad, supabase);
+            } else {
+              // Log first few reservation IDs for debugging
+              const sampleIds = reservations.slice(0, 10).map((r: any) => 
+                String(r.reservationID || r.reservationId || r.reservation_id || 'unknown')
+              );
+              console.log(`[cloudbeds-lookup] Reservation ${reservationIdStr} NOT found in list. Sample IDs: ${sampleIds.join(', ')}`);
+              
+              return new Response(
+                JSON.stringify({ 
+                  found: false, 
+                  error: 'Reservation not found in Cloudbeds',
+                  debug: {
+                    searchedId: reservationIdStr,
+                    totalReservationsInRange: reservations.length,
+                    sampleIds: sampleIds,
+                    dateRange: { from: startDateStr, to: endDateStr }
+                  }
+                }),
+                { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+        } catch (parseError) {
+          console.error('[cloudbeds-lookup] Failed to parse list response:', parseError);
+        }
+      }
+      
+      // Both methods failed
+      return new Response(
+        JSON.stringify({ 
+          found: false, 
+          error: 'Failed to fetch from Cloudbeds API',
+          debug: {
+            getReservationStatus: getResStatus,
+            getReservationError: getResText.substring(0, 500),
+            listStatus: listStatus,
+            listError: listText.substring(0, 500)
+          }
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // getReservation succeeded - process the response
+    try {
+      const cloudbedsData = JSON.parse(getResText);
+      console.log('[cloudbeds-lookup] Parsed getReservation response successfully');
+
+      if (!cloudbedsData.success || !cloudbedsData.data) {
         return new Response(
-          JSON.stringify({ found: false, error: 'Reservation not found' }),
+          JSON.stringify({ found: false, error: 'Reservation not found in Cloudbeds' }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      return await processAndUpsertReservation(cloudbedsData.data, massibaRiad, supabase);
       
+    } catch (parseError) {
+      console.error('[cloudbeds-lookup] Failed to parse getReservation response:', parseError);
       return new Response(
-        JSON.stringify({ found: false, error: 'Failed to fetch from Cloudbeds' }),
+        JSON.stringify({ found: false, error: 'Invalid response from Cloudbeds' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const cloudbedsData = await cloudbedsResponse.json();
-    console.log('[cloudbeds-lookup] Cloudbeds response:', JSON.stringify(cloudbedsData).substring(0, 500));
-
-    if (!cloudbedsData.success || !cloudbedsData.data) {
-      return new Response(
-        JSON.stringify({ found: false, error: 'Reservation not found in Cloudbeds' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const cbRes = cloudbedsData.data;
-    
-    // Parse guest name
-    const guestName = cbRes.guestName || cbRes.guestFirstName || '';
-    const nameParts = guestName.split(' ');
-    const guestFirstName = nameParts.length > 1 ? nameParts[0] : null;
-    const guestLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : guestName;
-
-    // Calculate nights if not provided
-    const checkIn = new Date(cbRes.startDate);
-    const checkOut = new Date(cbRes.endDate);
-    const nights = cbRes.nights || Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-
-    // Map status
-    let status = 'confirmed';
-    if (cbRes.status?.toLowerCase().includes('cancel')) {
-      status = 'canceled';
-    } else if (cbRes.status?.toLowerCase().includes('no_show') || cbRes.status?.toLowerCase().includes('noshow')) {
-      status = 'no_show';
-    }
-
-    // Step 3: Upsert to local database
-    const { error: upsertError } = await supabase
-      .from('reservations')
-      .upsert({
-        reservation_id: String(cbRes.reservationID),
-        property_id: MASSIBA_PROPERTY_ID,
-        riad_id: massibaRiad.id,
-        guest_first_name: guestFirstName,
-        guest_last_name: guestLastName,
-        check_in_date: cbRes.startDate,
-        check_out_date: cbRes.endDate,
-        nights: nights,
-        status: status,
-        source: cbRes.source || 'cloudbeds',
-        guest_country_code: cbRes.countryCode || null,
-        cloudbeds_raw: cbRes,
-      }, {
-        onConflict: 'reservation_id',
-      });
-
-    if (upsertError) {
-      console.error('[cloudbeds-lookup] Failed to upsert reservation:', upsertError);
-      // Continue anyway - we still found the reservation
-    } else {
-      console.log(`[cloudbeds-lookup] Upserted reservation ${reservation_id} from Cloudbeds`);
-    }
-
-    const result: LookupResult = {
-      found: true,
-      reservation: {
-        reservation_id: String(cbRes.reservationID),
-        guest_first_name: guestFirstName,
-        guest_last_name: guestLastName,
-        check_in_date: cbRes.startDate,
-        check_out_date: cbRes.endDate,
-        nights: nights,
-        status: status,
-        source: cbRes.source || 'cloudbeds',
-        riad_id: massibaRiad.id,
-        riad_name: massibaRiad.name,
-      },
-      source: 'cloudbeds',
-    };
-
-    return new Response(
-      JSON.stringify(result),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
 
   } catch (error) {
-    console.error('[cloudbeds-lookup] Error:', error);
+    console.error('[cloudbeds-lookup] Unexpected error:', error);
     return new Response(
       JSON.stringify({ found: false, error: 'An unexpected error occurred' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
+
+async function processAndUpsertReservation(
+  cbRes: any, 
+  massibaRiad: { id: string; name: string; cloudbeds_property_id: string | null }, 
+  supabase: any
+): Promise<Response> {
+  console.log('[cloudbeds-lookup] Processing reservation:', JSON.stringify(cbRes).substring(0, 500));
+  
+  // Handle different possible field names from Cloudbeds API
+  const reservationId = String(cbRes.reservationID || cbRes.reservationId || cbRes.reservation_id);
+  const guestName = cbRes.guestName || cbRes.guestFirstName || cbRes.guest_name || '';
+  const startDate = cbRes.startDate || cbRes.checkInDate || cbRes.check_in_date;
+  const endDate = cbRes.endDate || cbRes.checkOutDate || cbRes.check_out_date;
+  
+  // Parse guest name
+  const nameParts = guestName.split(' ');
+  const guestFirstName = nameParts.length > 1 ? nameParts[0] : null;
+  const guestLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : guestName;
+
+  // Calculate nights if not provided
+  let nights = cbRes.nights;
+  if (!nights && startDate && endDate) {
+    const checkIn = new Date(startDate);
+    const checkOut = new Date(endDate);
+    nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  // Map status
+  let status = 'confirmed';
+  const cbStatus = (cbRes.status || '').toLowerCase();
+  if (cbStatus.includes('cancel')) {
+    status = 'canceled';
+  } else if (cbStatus.includes('no_show') || cbStatus.includes('noshow')) {
+    status = 'no_show';
+  } else if (cbStatus.includes('checked_in') || cbStatus.includes('checkedin') || cbStatus.includes('in_house') || cbStatus.includes('inhouse')) {
+    status = 'checked_in';
+  } else if (cbStatus.includes('checked_out') || cbStatus.includes('checkedout')) {
+    status = 'checked_out';
+  }
+
+  console.log(`[cloudbeds-lookup] Mapped reservation: id=${reservationId}, guest=${guestLastName}, status=${status}, checkIn=${startDate}`);
+
+  // Upsert to local database
+  const { error: upsertError } = await supabase
+    .from('reservations')
+    .upsert({
+      reservation_id: reservationId,
+      property_id: MASSIBA_PROPERTY_ID,
+      riad_id: massibaRiad.id,
+      guest_first_name: guestFirstName,
+      guest_last_name: guestLastName,
+      check_in_date: startDate,
+      check_out_date: endDate,
+      nights: nights,
+      status: status,
+      source: cbRes.source || 'cloudbeds',
+      guest_country_code: cbRes.countryCode || cbRes.country_code || null,
+      cloudbeds_raw: cbRes,
+    }, {
+      onConflict: 'reservation_id',
+    });
+
+  if (upsertError) {
+    console.error('[cloudbeds-lookup] Failed to upsert reservation:', upsertError);
+  } else {
+    console.log(`[cloudbeds-lookup] Successfully upserted reservation ${reservationId}`);
+  }
+
+  const result: LookupResult = {
+    found: true,
+    reservation: {
+      reservation_id: reservationId,
+      guest_first_name: guestFirstName,
+      guest_last_name: guestLastName,
+      check_in_date: startDate,
+      check_out_date: endDate,
+      nights: nights,
+      status: status,
+      source: cbRes.source || 'cloudbeds',
+      riad_id: massibaRiad.id,
+      riad_name: massibaRiad.name,
+    },
+    source: 'cloudbeds',
+  };
+
+  console.log(`[cloudbeds-lookup] ====== LOOKUP SUCCESS ======`);
+
+  return new Response(
+    JSON.stringify(result),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
