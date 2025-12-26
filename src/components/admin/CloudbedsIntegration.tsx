@@ -55,21 +55,25 @@ const MASSIBA_PROPERTY_ID = '9462';
 export default function CloudbedsIntegration() {
   const [isChecking, setIsChecking] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [checkResult, setCheckResult] = useState<CloudbedsCheckResult | null>(null);
   const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
   const [lastWebhook, setLastWebhook] = useState<WebhookLog | null>(null);
   const [lastSyncRun, setLastSyncRun] = useState<SyncRun | null>(null);
+  const [webhookTestResult, setWebhookTestResult] = useState<string | null>(null);
+
+  // Webhook endpoint URL (for display and configuration)
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cloudbeds-webhook`;
 
   useEffect(() => {
     fetchOperationsData();
   }, []);
 
   const fetchOperationsData = async () => {
-    // Fetch last webhook
+    // Fetch last webhook - show ALL webhooks for debugging (not just Massiba)
     const { data: webhookData } = await supabase
       .from('cloudbeds_webhook_logs')
       .select('*')
-      .eq('property_id', MASSIBA_PROPERTY_ID)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -174,6 +178,33 @@ export default function CloudbedsIntegration() {
     } finally {
       setIsReconciling(false);
     }
+  };
+
+  const testWebhookEndpoint = async () => {
+    setIsTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      const response = await fetch(webhookUrl, { method: 'GET' });
+      const data = await response.json();
+      
+      if (response.ok) {
+        setWebhookTestResult(`✅ Endpoint reachable: ${data.message}`);
+        toast.success('Webhook endpoint is reachable!');
+      } else {
+        setWebhookTestResult(`❌ Error: ${response.status} - ${JSON.stringify(data)}`);
+        toast.error('Webhook endpoint returned an error');
+      }
+    } catch (error) {
+      setWebhookTestResult(`❌ Failed to reach endpoint: ${error}`);
+      toast.error('Failed to reach webhook endpoint');
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard!');
   };
 
   const formatDateTime = (isoString: string) => {
@@ -335,6 +366,76 @@ export default function CloudbedsIntegration() {
                 <>
                   <RefreshCw className="h-4 w-4" />
                   Run Connectivity Check
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Webhook Configuration Panel */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Webhook className="h-5 w-5" />
+            Webhook Configuration
+          </CardTitle>
+          <CardDescription>
+            Configure this URL in Cloudbeds to receive real-time reservation updates
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Webhook URL */}
+          <div className="p-4 rounded-lg border bg-muted/30">
+            <p className="text-sm font-medium mb-2">Webhook Endpoint URL</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 p-2 bg-background rounded text-sm font-mono break-all border">
+                {webhookUrl}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => copyToClipboard(webhookUrl)}
+              >
+                Copy
+              </Button>
+            </div>
+          </div>
+
+          {/* Required Events */}
+          <div className="p-4 rounded-lg border bg-card">
+            <p className="text-sm font-medium mb-2">Required Cloudbeds Events</p>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• <code className="bg-muted px-1 rounded">reservation.created</code></li>
+              <li>• <code className="bg-muted px-1 rounded">reservation.updated</code></li>
+              <li>• <code className="bg-muted px-1 rounded">reservation.cancelled</code></li>
+            </ul>
+          </div>
+
+          {/* Test Result */}
+          {webhookTestResult && (
+            <div className={`p-3 rounded-lg text-sm ${webhookTestResult.startsWith('✅') ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800' : 'bg-destructive/10 border border-destructive/30'}`}>
+              {webhookTestResult}
+            </div>
+          )}
+
+          {/* Test Button */}
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="outline"
+              onClick={testWebhookEndpoint}
+              disabled={isTestingWebhook}
+              className="gap-2"
+            >
+              {isTestingWebhook ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" />
+                  Test Endpoint Reachability
                 </>
               )}
             </Button>

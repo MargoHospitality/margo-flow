@@ -10,18 +10,75 @@ const corsHeaders = {
 const MASSIBA_PROPERTY_ID = '9462';
 
 serve(async (req) => {
+  // ========== RAW LOGGING - FIRST THING ==========
+  const requestTimestamp = new Date().toISOString();
+  const requestMethod = req.method;
+  const requestUrl = req.url;
+  const requestHeaders = Object.fromEntries(req.headers.entries());
+  
+  console.log(`[cloudbeds-webhook] ========== INCOMING REQUEST ==========`);
+  console.log(`[cloudbeds-webhook] Timestamp: ${requestTimestamp}`);
+  console.log(`[cloudbeds-webhook] Method: ${requestMethod}`);
+  console.log(`[cloudbeds-webhook] URL: ${requestUrl}`);
+  console.log(`[cloudbeds-webhook] Headers: ${JSON.stringify(requestHeaders)}`);
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
+    console.log('[cloudbeds-webhook] Responding to OPTIONS preflight');
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Handle GET requests for testing reachability
+  if (req.method === 'GET') {
+    console.log('[cloudbeds-webhook] GET request - returning health check');
+    return new Response(
+      JSON.stringify({ 
+        status: 'ok', 
+        message: 'Cloudbeds webhook endpoint is reachable',
+        timestamp: requestTimestamp,
+        endpoint: 'cloudbeds-webhook'
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  // Read raw body first for logging
+  let rawBody = '';
   try {
-    const payload = await req.json();
-    console.log('[cloudbeds-webhook] Received webhook:', JSON.stringify(payload).substring(0, 500));
+    rawBody = await req.text();
+    console.log(`[cloudbeds-webhook] Raw body (first 1000 chars): ${rawBody.substring(0, 1000)}`);
+  } catch (e) {
+    console.log(`[cloudbeds-webhook] Could not read raw body: ${e}`);
+  }
+
+  try {
+    // Parse body as JSON
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (parseError) {
+      console.error('[cloudbeds-webhook] Failed to parse JSON:', parseError);
+      // Log the raw request anyway for debugging
+      await supabase
+        .from('cloudbeds_webhook_logs')
+        .insert({
+          property_id: 'PARSE_ERROR',
+          reservation_id: null,
+          event_type: 'parse_error',
+          payload: { raw_body: rawBody.substring(0, 5000), error: String(parseError) },
+          processed: false,
+        });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid JSON payload' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log('[cloudbeds-webhook] Parsed payload:', JSON.stringify(payload).substring(0, 500));
 
     const eventType = payload.event || payload.type || 'unknown';
     const propertyId = String(payload.propertyID || payload.property_id || '');
