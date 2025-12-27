@@ -26,6 +26,84 @@ interface ScheduledReconcileResult {
   error?: string;
 }
 
+interface CloudbedsReservation {
+  reservationID: string;
+  guestName?: string;
+  guestFirstName?: string;
+  startDate: string;
+  endDate: string;
+  nights?: number;
+  status?: string;
+  source?: string;
+  countryCode?: string;
+  [key: string]: unknown;
+}
+
+async function fetchAllReservations(
+  cloudbedsApiKey: string,
+  propertyId: string,
+  checkInFrom: string,
+  modifiedFrom?: string
+): Promise<{ reservations: CloudbedsReservation[]; error?: string }> {
+  const allReservations: CloudbedsReservation[] = [];
+  let page = 1;
+  const pageSize = 100;
+  let hasMore = true;
+
+  console.log(`[cloudbeds-scheduled-reconcile] Fetching reservations for ${propertyId}: checkInFrom=${checkInFrom}, modifiedFrom=${modifiedFrom || 'none'}`);
+
+  while (hasMore) {
+    // Build URL with pagination - no end date, only future check-ins
+    let cloudbedsUrl = `https://hotels.cloudbeds.com/api/v1.1/getReservations?propertyID=${propertyId}&checkInFrom=${checkInFrom}&pageNumber=${page}&pageSize=${pageSize}`;
+    
+    // Add modifiedFrom for incremental sync if we have a last sync timestamp
+    if (modifiedFrom) {
+      cloudbedsUrl += `&modifiedFrom=${modifiedFrom}`;
+    }
+
+    console.log(`[cloudbeds-scheduled-reconcile] Page ${page}: ${cloudbedsUrl}`);
+
+    const response = await fetch(cloudbedsUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${cloudbedsApiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { reservations: [], error: `HTTP ${response.status}: ${errorText.substring(0, 200)}` };
+    }
+
+    const data = await response.json();
+
+    if (!data.success) {
+      return { reservations: [], error: data.message || data.error || 'API returned success=false' };
+    }
+
+    const pageReservations = Array.isArray(data.data) ? data.data : [];
+    allReservations.push(...pageReservations);
+
+    console.log(`[cloudbeds-scheduled-reconcile] Page ${page}: fetched ${pageReservations.length} reservations`);
+
+    // Check if there are more pages
+    if (pageReservations.length < pageSize) {
+      hasMore = false;
+    } else {
+      page++;
+      // Safety limit to prevent infinite loops
+      if (page > 100) {
+        console.warn('[cloudbeds-scheduled-reconcile] Reached page limit (100), stopping pagination');
+        hasMore = false;
+      }
+    }
+  }
+
+  console.log(`[cloudbeds-scheduled-reconcile] Total fetched for ${propertyId}: ${allReservations.length} reservations across ${page} pages`);
+  return { reservations: allReservations };
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -83,11 +161,22 @@ serve(async (req) => {
     console.log(`[cloudbeds-scheduled-reconcile] Found ${enabledRiads.length} properties with sync enabled`);
 
     const results: PropertyResult[] = [];
+    const today = new Date().toISOString().split('T')[0];
 
     // Process each enabled property
     for (const riad of enabledRiads) {
       const propertyId = riad.cloudbeds_property_id!;
       console.log(`[cloudbeds-scheduled-reconcile] Processing ${riad.name} (${propertyId})`);
+
+      // Get last successful sync run for incremental sync
+      const { data: lastSuccessfulRun } = await supabase
+        .from('cloudbeds_sync_runs')
+        .select('completed_at')
+        .eq('property_id', propertyId)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       // Create sync run record
       const { data: syncRun, error: syncRunError } = await supabase
@@ -107,39 +196,23 @@ serve(async (req) => {
       const syncRunId = syncRun?.id;
 
       try {
-        // Calculate date range
-        const today = new Date();
-        const pastDate = new Date();
-        pastDate.setDate(today.getDate() - 7);
-        const futureDate = new Date();
-        futureDate.setDate(today.getDate() + 365);
+        // Use modifiedFrom for incremental sync if we have a previous successful run
+        const modifiedFrom = lastSuccessfulRun?.completed_at 
+          ? lastSuccessfulRun.completed_at.split('T')[0]
+          : undefined;
 
-        const startDate = pastDate.toISOString().split('T')[0];
-        const endDate = futureDate.toISOString().split('T')[0];
+        // Fetch all reservations with pagination
+        const { reservations, error: fetchError } = await fetchAllReservations(
+          cloudbedsApiKey,
+          propertyId,
+          today,
+          modifiedFrom
+        );
 
-        // Fetch from Cloudbeds API
-        const cloudbedsUrl = `https://hotels.cloudbeds.com/api/v1.1/getReservations?propertyID=${propertyId}&checkInFrom=${startDate}&checkInTo=${endDate}`;
-        
-        const cloudbedsResponse = await fetch(cloudbedsUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${cloudbedsApiKey}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!cloudbedsResponse.ok) {
-          const errorText = await cloudbedsResponse.text();
-          throw new Error(`HTTP ${cloudbedsResponse.status}: ${errorText.substring(0, 200)}`);
+        if (fetchError) {
+          throw new Error(fetchError);
         }
 
-        const cloudbedsData = await cloudbedsResponse.json();
-
-        if (!cloudbedsData.success) {
-          throw new Error(cloudbedsData.message || cloudbedsData.error || 'API returned success=false');
-        }
-
-        const reservations = Array.isArray(cloudbedsData.data) ? cloudbedsData.data : [];
         console.log(`[cloudbeds-scheduled-reconcile] ${riad.name}: Processing ${reservations.length} reservations`);
 
         let created = 0;
