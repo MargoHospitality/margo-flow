@@ -70,29 +70,12 @@ serve(async (req) => {
     // Use service role for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('[cloudbeds-reconcile] Starting reconciliation for Massiba...');
+    console.log('[cloudbeds-reconcile] Starting manual reconciliation for Massiba...');
 
-    // Create sync run record
-    const { data: syncRun, error: syncRunError } = await supabase
-      .from('cloudbeds_sync_runs')
-      .insert({
-        property_id: MASSIBA_PROPERTY_ID,
-        run_type: 'reconciliation',
-        status: 'running',
-      })
-      .select()
-      .single();
-
-    if (syncRunError) {
-      console.error('[cloudbeds-reconcile] Failed to create sync run:', syncRunError);
-    }
-
-    const syncRunId = syncRun?.id;
-
-    // Get Massiba riad from database
+    // Get Massiba riad from database and check if sync is enabled
     const { data: massibaRiad, error: riadError } = await supabase
       .from('riads')
-      .select('id, name, cloudbeds_property_id')
+      .select('id, name, cloudbeds_property_id, cloudbeds_sync_enabled')
       .eq('cloudbeds_property_id', MASSIBA_PROPERTY_ID)
       .maybeSingle();
 
@@ -107,15 +90,40 @@ serve(async (req) => {
         error: 'Riad Massiba not configured in database',
       };
 
-      if (syncRunId) {
-        await supabase
-          .from('cloudbeds_sync_runs')
-          .update({ status: 'failed', error_message: result.error, completed_at: new Date().toISOString() })
-          .eq('id', syncRunId);
-      }
+      return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Check if sync is enabled
+    if (!massibaRiad.cloudbeds_sync_enabled) {
+      const result: ReconcileResult = {
+        success: false,
+        property_id: MASSIBA_PROPERTY_ID,
+        reservations_processed: 0,
+        reservations_created: 0,
+        reservations_updated: 0,
+        transport_requests_cancelled: 0,
+        error: 'Cloudbeds sync is disabled for this property. Enable it to run reconciliation.',
+      };
 
       return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
+    // Create sync run record
+    const { data: syncRun, error: syncRunError } = await supabase
+      .from('cloudbeds_sync_runs')
+      .insert({
+        property_id: MASSIBA_PROPERTY_ID,
+        run_type: 'manual',
+        status: 'running',
+      })
+      .select()
+      .single();
+
+    if (syncRunError) {
+      console.error('[cloudbeds-reconcile] Failed to create sync run:', syncRunError);
+    }
+
+    const syncRunId = syncRun?.id;
 
     // Get Cloudbeds API key
     const cloudbedsApiKey = Deno.env.get('CLOUDBEDS_API_KEY');

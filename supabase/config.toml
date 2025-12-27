@@ -21,6 +21,9 @@ verify_jwt = false
 [functions.cloudbeds-reconcile]
 verify_jwt = false
 
+[functions.cloudbeds-scheduled-reconcile]
+verify_jwt = false
+
 [functions.cloudbeds-add-note]
 verify_jwt = false
 

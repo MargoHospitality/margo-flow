@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Cloud, CheckCircle2, XCircle, RefreshCw, Building, Key, Clock, AlertTriangle, Webhook, Database, Play } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Loader2, Cloud, CheckCircle2, XCircle, RefreshCw, Building, Key, Clock, AlertTriangle, Webhook, Database, Play, Power, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -50,17 +51,27 @@ interface SyncRun {
   completed_at: string | null;
 }
 
+interface PropertySyncStatus {
+  id: string;
+  name: string;
+  cloudbeds_property_id: string;
+  cloudbeds_sync_enabled: boolean;
+  lastScheduledRun: SyncRun | null;
+  lastManualRun: SyncRun | null;
+}
+
 const MASSIBA_PROPERTY_ID = '9462';
 
 export default function CloudbedsIntegration() {
   const [isChecking, setIsChecking] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [isTogglingSync, setIsTogglingSync] = useState<string | null>(null);
   const [checkResult, setCheckResult] = useState<CloudbedsCheckResult | null>(null);
   const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
   const [lastWebhook, setLastWebhook] = useState<WebhookLog | null>(null);
-  const [lastSyncRun, setLastSyncRun] = useState<SyncRun | null>(null);
   const [webhookTestResult, setWebhookTestResult] = useState<string | null>(null);
+  const [propertySyncStatus, setPropertySyncStatus] = useState<PropertySyncStatus[]>([]);
 
   // Webhook endpoint URL (for display and configuration)
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cloudbeds-webhook`;
@@ -70,7 +81,7 @@ export default function CloudbedsIntegration() {
   }, []);
 
   const fetchOperationsData = async () => {
-    // Fetch last webhook - show ALL webhooks for debugging (not just Massiba)
+    // Fetch last webhook
     const { data: webhookData } = await supabase
       .from('cloudbeds_webhook_logs')
       .select('*')
@@ -82,17 +93,74 @@ export default function CloudbedsIntegration() {
       setLastWebhook(webhookData as WebhookLog);
     }
 
-    // Fetch last sync run
-    const { data: syncData } = await supabase
-      .from('cloudbeds_sync_runs')
-      .select('*')
-      .eq('property_id', MASSIBA_PROPERTY_ID)
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Fetch properties with Cloudbeds integration
+    const { data: riads } = await supabase
+      .from('riads')
+      .select('id, name, cloudbeds_property_id, cloudbeds_sync_enabled')
+      .not('cloudbeds_property_id', 'is', null);
 
-    if (syncData) {
-      setLastSyncRun(syncData as SyncRun);
+    if (riads) {
+      const statusPromises = riads.map(async (riad) => {
+        // Fetch last scheduled run
+        const { data: scheduledRun } = await supabase
+          .from('cloudbeds_sync_runs')
+          .select('*')
+          .eq('property_id', riad.cloudbeds_property_id)
+          .eq('run_type', 'scheduled')
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // Fetch last manual run
+        const { data: manualRun } = await supabase
+          .from('cloudbeds_sync_runs')
+          .select('*')
+          .eq('property_id', riad.cloudbeds_property_id)
+          .eq('run_type', 'manual')
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        return {
+          id: riad.id,
+          name: riad.name,
+          cloudbeds_property_id: riad.cloudbeds_property_id!,
+          cloudbeds_sync_enabled: riad.cloudbeds_sync_enabled ?? false,
+          lastScheduledRun: scheduledRun as SyncRun | null,
+          lastManualRun: manualRun as SyncRun | null,
+        };
+      });
+
+      const statuses = await Promise.all(statusPromises);
+      setPropertySyncStatus(statuses);
+    }
+  };
+
+  const togglePropertySync = async (propertyId: string, currentEnabled: boolean) => {
+    setIsTogglingSync(propertyId);
+    try {
+      const { error } = await supabase
+        .from('riads')
+        .update({ cloudbeds_sync_enabled: !currentEnabled })
+        .eq('id', propertyId);
+
+      if (error) throw error;
+
+      // Update local state
+      setPropertySyncStatus(prev => 
+        prev.map(p => 
+          p.id === propertyId 
+            ? { ...p, cloudbeds_sync_enabled: !currentEnabled }
+            : p
+        )
+      );
+
+      toast.success(`Cloudbeds sync ${!currentEnabled ? 'enabled' : 'disabled'}`);
+    } catch (error) {
+      console.error('Failed to toggle sync:', error);
+      toast.error('Failed to update sync status');
+    } finally {
+      setIsTogglingSync(null);
     }
   };
 
@@ -138,6 +206,13 @@ export default function CloudbedsIntegration() {
   };
 
   const runReconciliation = async () => {
+    // Check if sync is enabled for Massiba
+    const massibaStatus = propertySyncStatus.find(p => p.cloudbeds_property_id === MASSIBA_PROPERTY_ID);
+    if (massibaStatus && !massibaStatus.cloudbeds_sync_enabled) {
+      toast.error('Cloudbeds sync is disabled for this property. Enable it first.');
+      return;
+    }
+
     setIsReconciling(true);
     setReconcileResult(null);
     try {
@@ -223,6 +298,19 @@ export default function CloudbedsIntegration() {
         return 'OAuth 2.0';
       default:
         return 'Unknown';
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <Badge variant="default" className="bg-green-600">Completed</Badge>;
+      case 'failed':
+        return <Badge variant="destructive">Failed</Badge>;
+      case 'running':
+        return <Badge variant="secondary">Running</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
   };
 
@@ -443,74 +531,151 @@ export default function CloudbedsIntegration() {
         </CardContent>
       </Card>
 
-      {/* Operations Panel - Massiba Only */}
+      {/* Property Sync Control Panel */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Database className="h-5 w-5" />
-            Operations (Massiba Only)
+            Property Sync Control
           </CardTitle>
           <CardDescription>
-            Webhook events, reconciliation sync, and manual actions for Riad Massiba
+            Enable or disable Cloudbeds synchronization per property
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {propertySyncStatus.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No properties with Cloudbeds integration configured.</p>
+          ) : (
+            <div className="space-y-4">
+              {propertySyncStatus.map((property) => (
+                <div key={property.id} className="p-4 rounded-lg border bg-card">
+                  {/* Property Header with Toggle */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <Building className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">{property.name}</p>
+                        <p className="text-xs text-muted-foreground">Property ID: {property.cloudbeds_property_id}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">
+                          {property.cloudbeds_sync_enabled ? 'Sync ON' : 'Sync OFF'}
+                        </span>
+                        <Switch
+                          checked={property.cloudbeds_sync_enabled}
+                          onCheckedChange={() => togglePropertySync(property.id, property.cloudbeds_sync_enabled)}
+                          disabled={isTogglingSync === property.id}
+                        />
+                      </div>
+                      <Badge variant={property.cloudbeds_sync_enabled ? 'default' : 'secondary'}>
+                        {property.cloudbeds_sync_enabled ? (
+                          <><Power className="h-3 w-3 mr-1" /> Active</>
+                        ) : (
+                          <><Power className="h-3 w-3 mr-1" /> Disabled</>
+                        )}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Sync Status Description */}
+                  <div className={`p-3 rounded-lg text-sm mb-4 ${property.cloudbeds_sync_enabled ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800' : 'bg-muted/50 border border-muted'}`}>
+                    {property.cloudbeds_sync_enabled ? (
+                      <ul className="space-y-1 text-muted-foreground">
+                        <li>✓ Cloudbeds webhooks are processed</li>
+                        <li>✓ Scheduled reconciliation is active (08:00 & 20:00 daily)</li>
+                        <li>✓ Manual reconciliation is allowed</li>
+                      </ul>
+                    ) : (
+                      <ul className="space-y-1 text-muted-foreground">
+                        <li>✗ Cloudbeds webhooks are ignored</li>
+                        <li>✗ Scheduled reconciliation is disabled</li>
+                        <li>✗ Manual reconciliation is blocked</li>
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* Last Runs Grid */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {/* Last Scheduled Run */}
+                    <div className="p-3 rounded-lg border bg-muted/30">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Last Scheduled Run</span>
+                      </div>
+                      {property.lastScheduledRun ? (
+                        <div className="space-y-1 text-sm">
+                          <p><span className="text-muted-foreground">Time:</span> {formatDateTime(property.lastScheduledRun.started_at)}</p>
+                          <p><span className="text-muted-foreground">Processed:</span> {property.lastScheduledRun.reservations_processed ?? 0} reservations</p>
+                          <div className="mt-2">{getStatusBadge(property.lastScheduledRun.status)}</div>
+                          {property.lastScheduledRun.error_message && (
+                            <p className="text-xs text-destructive mt-1">{property.lastScheduledRun.error_message}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No scheduled runs yet</p>
+                      )}
+                    </div>
+
+                    {/* Last Manual Run */}
+                    <div className="p-3 rounded-lg border bg-muted/30">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Play className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Last Manual Run</span>
+                      </div>
+                      {property.lastManualRun ? (
+                        <div className="space-y-1 text-sm">
+                          <p><span className="text-muted-foreground">Time:</span> {formatDateTime(property.lastManualRun.started_at)}</p>
+                          <p><span className="text-muted-foreground">Processed:</span> {property.lastManualRun.reservations_processed ?? 0} reservations</p>
+                          <div className="mt-2">{getStatusBadge(property.lastManualRun.status)}</div>
+                          {property.lastManualRun.error_message && (
+                            <p className="text-xs text-destructive mt-1">{property.lastManualRun.error_message}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No manual runs yet</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Operations Panel - Massiba Only */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Play className="h-5 w-5" />
+            Manual Operations (Massiba)
+          </CardTitle>
+          <CardDescription>
+            Run manual reconciliation and view recent webhook activity
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Active Property */}
-          <div className="flex items-center gap-3 p-4 rounded-lg border bg-primary/5">
-            <Building className="h-5 w-5 text-primary" />
-            <div>
-              <p className="font-medium">Active Property</p>
-              <p className="text-sm text-muted-foreground">Riad Massiba (ID: {MASSIBA_PROPERTY_ID})</p>
+          {/* Last Webhook */}
+          <div className="p-4 rounded-lg border bg-card">
+            <div className="flex items-center gap-2 mb-3">
+              <Webhook className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium text-sm">Last Webhook Received</span>
             </div>
-            <Badge className="ml-auto" variant="default">Enabled</Badge>
-          </div>
-
-          <Separator />
-
-          {/* Last Webhook & Last Sync Grid */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Last Webhook */}
-            <div className="p-4 rounded-lg border bg-card">
-              <div className="flex items-center gap-2 mb-3">
-                <Webhook className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-sm">Last Webhook Received</span>
+            {lastWebhook ? (
+              <div className="space-y-1 text-sm">
+                <p><span className="text-muted-foreground">Time:</span> {formatDateTime(lastWebhook.created_at)}</p>
+                <p><span className="text-muted-foreground">Event:</span> {lastWebhook.event_type}</p>
+                <p><span className="text-muted-foreground">Property:</span> {lastWebhook.property_id}</p>
+                <p><span className="text-muted-foreground">Reservation:</span> {lastWebhook.reservation_id || 'N/A'}</p>
+                <Badge variant={lastWebhook.processed ? 'default' : 'secondary'} className="mt-2">
+                  {lastWebhook.processed ? 'Processed' : 'Pending'}
+                </Badge>
               </div>
-              {lastWebhook ? (
-                <div className="space-y-1 text-sm">
-                  <p><span className="text-muted-foreground">Time:</span> {formatDateTime(lastWebhook.created_at)}</p>
-                  <p><span className="text-muted-foreground">Event:</span> {lastWebhook.event_type}</p>
-                  <p><span className="text-muted-foreground">Reservation:</span> {lastWebhook.reservation_id || 'N/A'}</p>
-                  <Badge variant={lastWebhook.processed ? 'default' : 'secondary'} className="mt-2">
-                    {lastWebhook.processed ? 'Processed' : 'Pending'}
-                  </Badge>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No webhooks received yet</p>
-              )}
-            </div>
-
-            {/* Last Reconciliation */}
-            <div className="p-4 rounded-lg border bg-card">
-              <div className="flex items-center gap-2 mb-3">
-                <RefreshCw className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-sm">Last Reconciliation Run</span>
-              </div>
-              {lastSyncRun ? (
-                <div className="space-y-1 text-sm">
-                  <p><span className="text-muted-foreground">Time:</span> {formatDateTime(lastSyncRun.started_at)}</p>
-                  <p><span className="text-muted-foreground">Processed:</span> {lastSyncRun.reservations_processed ?? 0} reservations</p>
-                  <p><span className="text-muted-foreground">Created:</span> {lastSyncRun.reservations_created ?? 0} / Updated: {lastSyncRun.reservations_updated ?? 0}</p>
-                  <Badge 
-                    variant={lastSyncRun.status === 'completed' ? 'default' : lastSyncRun.status === 'failed' ? 'destructive' : 'secondary'} 
-                    className="mt-2"
-                  >
-                    {lastSyncRun.status}
-                  </Badge>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No reconciliation runs yet</p>
-              )}
-            </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No webhooks received yet</p>
+            )}
           </div>
 
           {/* Reconcile Result */}
@@ -541,7 +706,7 @@ export default function CloudbedsIntegration() {
           <div className="flex justify-end pt-4 border-t">
             <Button
               onClick={runReconciliation}
-              disabled={isReconciling}
+              disabled={isReconciling || !propertySyncStatus.find(p => p.cloudbeds_property_id === MASSIBA_PROPERTY_ID)?.cloudbeds_sync_enabled}
               variant="outline"
               className="gap-2"
             >
@@ -553,10 +718,39 @@ export default function CloudbedsIntegration() {
               ) : (
                 <>
                   <Play className="h-4 w-4" />
-                  Run Reconciliation Now (Massiba)
+                  Run Manual Reconciliation
                 </>
               )}
             </Button>
+          </div>
+
+          {/* Disabled warning */}
+          {propertySyncStatus.find(p => p.cloudbeds_property_id === MASSIBA_PROPERTY_ID) && 
+           !propertySyncStatus.find(p => p.cloudbeds_property_id === MASSIBA_PROPERTY_ID)?.cloudbeds_sync_enabled && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-sm">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-amber-800 dark:text-amber-200">
+                Manual reconciliation is disabled because Cloudbeds sync is OFF for this property.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Scheduled Reconciliation Info */}
+      <Card className="border-muted">
+        <CardContent className="pt-6">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-full bg-muted shrink-0">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">Scheduled Reconciliation</p>
+              <p>
+                When Cloudbeds sync is enabled, automatic reconciliation runs at <strong>08:00</strong> and <strong>20:00</strong> daily.
+                This syncs all reservations from Cloudbeds and applies cancellation/date-change rules to transport requests.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -572,7 +766,7 @@ export default function CloudbedsIntegration() {
               <p className="font-medium text-foreground mb-1">About this module</p>
               <p>
                 This module provides Cloudbeds integration for <strong>Riad Massiba only</strong>.
-                Other properties are excluded from webhooks and synchronization until the flow is validated.
+                Other properties can be added later. The sync toggle controls webhooks, scheduled reconciliation, and manual reconciliation independently per property.
                 API credentials are stored securely and never exposed in the UI.
               </p>
             </div>

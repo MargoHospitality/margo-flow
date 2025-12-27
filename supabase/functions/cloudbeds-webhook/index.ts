@@ -99,17 +99,23 @@ serve(async (req) => {
       console.error('[cloudbeds-webhook] Failed to log webhook:', logError);
     }
 
-    // MASSIBA ONLY: Skip if not Massiba property
-    if (propertyId !== MASSIBA_PROPERTY_ID) {
-      console.log(`[cloudbeds-webhook] Skipping: property ${propertyId} is not Massiba (${MASSIBA_PROPERTY_ID})`);
+    // Get riad from database and check if sync is enabled
+    const { data: riad } = await supabase
+      .from('riads')
+      .select('id, name, cloudbeds_sync_enabled')
+      .eq('cloudbeds_property_id', propertyId)
+      .maybeSingle();
+
+    // Skip if property not found or sync is disabled
+    if (!riad) {
+      console.log(`[cloudbeds-webhook] Skipping: property ${propertyId} not found in database`);
       
-      // Update log to mark as processed (skipped)
       await supabase
         .from('cloudbeds_webhook_logs')
         .update({ 
           processed: true, 
           processed_at: new Date().toISOString(),
-          error_message: 'Skipped: not Massiba property'
+          error_message: 'Skipped: property not configured'
         })
         .eq('property_id', propertyId)
         .eq('reservation_id', reservationId)
@@ -118,25 +124,37 @@ serve(async (req) => {
         .limit(1);
 
       return new Response(
-        JSON.stringify({ success: true, message: 'Webhook received but skipped (not Massiba)' }),
+        JSON.stringify({ success: true, message: 'Webhook received but skipped (property not configured)' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get Massiba riad from database
-    const { data: massibaRiad } = await supabase
-      .from('riads')
-      .select('id')
-      .eq('cloudbeds_property_id', MASSIBA_PROPERTY_ID)
-      .maybeSingle();
+    if (!riad.cloudbeds_sync_enabled) {
+      console.log(`[cloudbeds-webhook] Skipping: sync disabled for ${riad.name} (${propertyId})`);
+      
+      await supabase
+        .from('cloudbeds_webhook_logs')
+        .update({ 
+          processed: true, 
+          processed_at: new Date().toISOString(),
+          error_message: 'Skipped: Cloudbeds sync disabled for this property'
+        })
+        .eq('property_id', propertyId)
+        .eq('reservation_id', reservationId)
+        .eq('event_type', eventType)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-    if (!massibaRiad) {
-      console.error('[cloudbeds-webhook] Massiba riad not found in database');
       return new Response(
-        JSON.stringify({ success: false, error: 'Massiba riad not configured' }),
+        JSON.stringify({ success: true, message: 'Webhook received but skipped (sync disabled)' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log(`[cloudbeds-webhook] Processing webhook for ${riad.name} (${propertyId})`);
+
+    // Use riad.id as massibaRiad.id for backward compatibility
+    const massibaRiad = riad;
 
     let processedResult = { action: 'none', transportCancelled: 0 };
 

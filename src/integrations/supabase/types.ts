@@ -306,6 +306,7 @@ export type Database = {
       riads: {
         Row: {
           cloudbeds_property_id: string | null
+          cloudbeds_sync_enabled: boolean
           created_at: string
           id: string
           is_active: boolean
@@ -317,6 +318,7 @@ export type Database = {
         }
         Insert: {
           cloudbeds_property_id?: string | null
+          cloudbeds_sync_enabled?: boolean
           created_at?: string
           id?: string
           is_active?: boolean
@@ -328,6 +330,7 @@ export type Database = {
         }
         Update: {
           cloudbeds_property_id?: string | null
+          cloudbeds_sync_enabled?: boolean
           created_at?: string
           id?: string
           is_active?: boolean
