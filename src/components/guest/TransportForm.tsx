@@ -226,34 +226,42 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
 
       if (error) throw error;
 
-      // Get manager email for notification
+      // Get manager contact info for notification
       const { data: riadData } = await supabase
         .from('riads')
-        .select('manager_email')
+        .select('manager_email, manager_whatsapp')
         .eq('id', reservation.riad_id)
         .single();
 
-      // Send manager notification email
+      // Determine if this is an urgent request (within 48 hours)
+      const transportDateObj = parseISO(transportDate);
+      const now = new Date();
+      const hoursUntilTransport = (transportDateObj.getTime() - now.getTime()) / (1000 * 60 * 60);
+      const isUrgent = hoursUntilTransport <= 48;
+
+      // Send manager notification (WhatsApp for urgent, email for non-urgent)
       if (riadData?.manager_email) {
         try {
-          await supabase.functions.invoke('send-manager-notification', {
+          await supabase.functions.invoke('notify-manager', {
             body: {
+              transportRequestId: insertedData.id,
               reservationId: reservation.reservation_id,
               propertyName: reservation.riad_name,
               guestName: `${reservation.guest_first_name || ''} ${reservation.guest_last_name}`.trim(),
               transportType: language === 'fr' && selectedOffer.name_fr ? selectedOffer.name_fr : selectedOffer.name,
-              transportDate: format(parseISO(transportDate), 'PPP'),
-              arrivalTime: transportTime,
+              transportDate: format(transportDateObj, 'PPP'),
+              transportTime: transportTime,
               flightTrainNumber: dynamicFields.flight_number || dynamicFields.train_number,
               guestComment: guestComment.trim() || undefined,
               managerEmail: riadData.manager_email,
+              managerPhone: riadData.manager_whatsapp,
               appUrl: window.location.origin,
-              requestId: insertedData.id,
+              isUrgent,
             },
           });
-        } catch (emailError) {
-          console.error('Error sending manager notification:', emailError);
-          // Don't fail the request if email fails
+        } catch (notificationError) {
+          console.error('Error sending manager notification:', notificationError);
+          // Don't fail the request if notification fails
         }
       }
 
