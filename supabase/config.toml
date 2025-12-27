@@ -23,3 +23,15 @@ verify_jwt = false
 
 [functions.cloudbeds-add-note]
 verify_jwt = false
+
+[functions.send-whatsapp]
+verify_jwt = false
+
+[functions.notify-client]
+verify_jwt = false
+
+[functions.notify-manager]
+verify_jwt = false
+
+[functions.send-reminder-emails]
+verify_jwt = false
