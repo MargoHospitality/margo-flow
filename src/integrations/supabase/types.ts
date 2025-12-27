@@ -92,6 +92,65 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_attempts: {
+        Row: {
+          channel: string
+          created_at: string
+          error_message: string | null
+          id: string
+          is_fallback: boolean
+          metadata: Json | null
+          notification_type: string
+          provider_message_id: string | null
+          recipient_email: string | null
+          recipient_phone: string | null
+          status: string
+          template_sid: string | null
+          transport_request_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          is_fallback?: boolean
+          metadata?: Json | null
+          notification_type: string
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          status?: string
+          template_sid?: string | null
+          transport_request_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          is_fallback?: boolean
+          metadata?: Json | null
+          notification_type?: string
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          status?: string
+          template_sid?: string | null
+          transport_request_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_attempts_transport_request_id_fkey"
+            columns: ["transport_request_id"]
+            isOneToOne: false
+            referencedRelation: "transport_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -254,6 +313,7 @@ export type Database = {
           manager_whatsapp: string | null
           name: string
           updated_at: string
+          whatsapp_enabled: boolean
         }
         Insert: {
           cloudbeds_property_id?: string | null
@@ -264,6 +324,7 @@ export type Database = {
           manager_whatsapp?: string | null
           name: string
           updated_at?: string
+          whatsapp_enabled?: boolean
         }
         Update: {
           cloudbeds_property_id?: string | null
@@ -274,6 +335,7 @@ export type Database = {
           manager_whatsapp?: string | null
           name?: string
           updated_at?: string
+          whatsapp_enabled?: boolean
         }
         Relationships: []
       }
