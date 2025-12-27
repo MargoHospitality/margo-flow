@@ -18,13 +18,23 @@ interface CloudbedsCheckResult {
   errorMessage?: string;
 }
 
-interface ReconcileResult {
-  success: boolean;
+interface PropertyResult {
   property_id: string;
+  property_name: string;
+  success: boolean;
   reservations_processed: number;
   reservations_created: number;
   reservations_updated: number;
   transport_requests_cancelled: number;
+  error?: string;
+}
+
+interface ReconcileResult {
+  success: boolean;
+  run_type: 'manual' | 'scheduled';
+  properties_processed: number;
+  properties_skipped: number;
+  results: PropertyResult[];
   error?: string;
 }
 
@@ -60,7 +70,7 @@ interface PropertySyncStatus {
   lastManualRun: SyncRun | null;
 }
 
-const MASSIBA_PROPERTY_ID = '9462';
+// Removed MASSIBA_PROPERTY_ID - sync now driven by cloudbeds_sync_enabled toggle per property
 
 export default function CloudbedsIntegration() {
   const [isChecking, setIsChecking] = useState(false);
@@ -206,10 +216,10 @@ export default function CloudbedsIntegration() {
   };
 
   const runReconciliation = async () => {
-    // Check if sync is enabled for Massiba
-    const massibaStatus = propertySyncStatus.find(p => p.cloudbeds_property_id === MASSIBA_PROPERTY_ID);
-    if (massibaStatus && !massibaStatus.cloudbeds_sync_enabled) {
-      toast.error('Cloudbeds sync is disabled for this property. Enable it first.');
+    // Check if at least one property has sync enabled
+    const enabledProperties = propertySyncStatus.filter(p => p.cloudbeds_sync_enabled);
+    if (enabledProperties.length === 0) {
+      toast.error('No properties have Cloudbeds sync enabled. Enable sync for at least one property.');
       return;
     }
 
@@ -242,7 +252,8 @@ export default function CloudbedsIntegration() {
       setReconcileResult(result);
 
       if (result.success) {
-        toast.success(`Reconciliation completed: ${result.reservations_processed} reservations processed`);
+        const totalReservations = result.results.reduce((sum, r) => sum + r.reservations_processed, 0);
+        toast.success(`Reconciliation completed: ${result.properties_processed} properties, ${totalReservations} reservations processed`);
         fetchOperationsData(); // Refresh operations data
       } else {
         toast.error(result.error || 'Reconciliation failed');
@@ -690,10 +701,13 @@ export default function CloudbedsIntegration() {
                 <p className="font-medium">{reconcileResult.success ? 'Reconciliation Completed' : 'Reconciliation Failed'}</p>
                 {reconcileResult.success ? (
                   <ul className="mt-1 text-muted-foreground">
-                    <li>Reservations processed: {reconcileResult.reservations_processed}</li>
-                    <li>Created: {reconcileResult.reservations_created}</li>
-                    <li>Updated: {reconcileResult.reservations_updated}</li>
-                    <li>Transport requests cancelled: {reconcileResult.transport_requests_cancelled}</li>
+                    <li>Properties processed: {reconcileResult.properties_processed}</li>
+                    {reconcileResult.results.map((r, idx) => (
+                      <li key={idx} className="ml-4">
+                        {r.property_name}: {r.reservations_processed} reservations ({r.reservations_created} created, {r.reservations_updated} updated)
+                        {r.transport_requests_cancelled > 0 && `, ${r.transport_requests_cancelled} transport cancelled`}
+                      </li>
+                    ))}
                   </ul>
                 ) : (
                   <p className="text-muted-foreground">{reconcileResult.error}</p>
@@ -706,7 +720,7 @@ export default function CloudbedsIntegration() {
           <div className="flex justify-end pt-4 border-t">
             <Button
               onClick={runReconciliation}
-              disabled={isReconciling || !propertySyncStatus.find(p => p.cloudbeds_property_id === MASSIBA_PROPERTY_ID)?.cloudbeds_sync_enabled}
+              disabled={isReconciling || propertySyncStatus.filter(p => p.cloudbeds_sync_enabled).length === 0}
               variant="outline"
               className="gap-2"
             >
@@ -725,12 +739,11 @@ export default function CloudbedsIntegration() {
           </div>
 
           {/* Disabled warning */}
-          {propertySyncStatus.find(p => p.cloudbeds_property_id === MASSIBA_PROPERTY_ID) && 
-           !propertySyncStatus.find(p => p.cloudbeds_property_id === MASSIBA_PROPERTY_ID)?.cloudbeds_sync_enabled && (
+          {propertySyncStatus.filter(p => p.cloudbeds_sync_enabled).length === 0 && (
             <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-sm">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <p className="text-amber-800 dark:text-amber-200">
-                Manual reconciliation is disabled because Cloudbeds sync is OFF for this property.
+                Manual reconciliation is disabled because no properties have Cloudbeds sync enabled.
               </p>
             </div>
           )}
@@ -765,8 +778,8 @@ export default function CloudbedsIntegration() {
             <div className="text-sm text-muted-foreground">
               <p className="font-medium text-foreground mb-1">About this module</p>
               <p>
-                This module provides Cloudbeds integration for <strong>Riad Massiba only</strong>.
-                Other properties can be added later. The sync toggle controls webhooks, scheduled reconciliation, and manual reconciliation independently per property.
+                This module provides Cloudbeds integration for all properties with sync enabled.
+                The sync toggle controls webhooks, scheduled reconciliation, and manual reconciliation independently per property.
                 API credentials are stored securely and never exposed in the UI.
               </p>
             </div>

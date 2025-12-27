@@ -6,9 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// MASSIBA ONLY - Only process this property ID
-const MASSIBA_PROPERTY_ID = '9462';
-
 serve(async (req) => {
   // ========== RAW LOGGING - FIRST THING ==========
   const requestTimestamp = new Date().toISOString();
