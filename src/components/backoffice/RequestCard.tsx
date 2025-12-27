@@ -72,8 +72,10 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
 
       if (error) throw error;
 
-      // Send confirmation email to guest
+      // Send confirmation to guest (WhatsApp primary, email fallback)
       const guestEmail = request.payload_details?.guest_email;
+      const guestPhone = request.payload_details?.guest_whatsapp;
+      
       if (guestEmail) {
         try {
           // Get riad details for manager contact info
@@ -83,18 +85,20 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             .eq('name', request.riad.name)
             .single();
 
-          await supabase.functions.invoke('send-client-confirmation', {
+          await supabase.functions.invoke('notify-client', {
             body: {
+              transportRequestId: request.id,
               language: language,
-              reservationId: request.reservation_id,
-              propertyName: request.riad.name,
               guestName: `${request.reservation.guest_first_name || ''} ${request.reservation.guest_last_name}`.trim(),
               guestEmail: guestEmail,
+              guestPhone: guestPhone || undefined,
+              propertyName: request.riad.name,
+              reservationId: request.reservation_id,
               transportType: language === 'fr' && request.transport_offer.name_fr 
                 ? request.transport_offer.name_fr 
                 : request.transport_offer.name,
               transportDate: format(parseISO(request.transport_date), 'PPP'),
-              arrivalTime: request.transport_time,
+              transportTime: request.transport_time,
               flightTrainNumber: request.payload_details?.flight_number || request.payload_details?.train_number,
               guestComment: request.guest_comment,
               paymentMode: request.payment_mode,
@@ -103,8 +107,8 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
               managerWhatsapp: riadData?.manager_whatsapp,
             },
           });
-        } catch (emailError) {
-          console.error('Error sending client confirmation:', emailError);
+        } catch (notificationError) {
+          console.error('Error sending client confirmation:', notificationError);
         }
       }
 
@@ -132,11 +136,9 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
           console.log('Cloudbeds note skipped:', noteResult.data.skipped_reason);
         } else if (noteResult.data?.error) {
           console.error('Cloudbeds note error:', noteResult.data.error);
-          // Don't show toast - error is logged in Cloudbeds Operations panel
         }
       } catch (noteError) {
         console.error('Error adding Cloudbeds note:', noteError);
-        // Non-blocking: confirmation still succeeds even if note fails
       }
 
       toast.success(t('confirm_transport'));
