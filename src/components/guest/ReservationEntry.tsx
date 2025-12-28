@@ -32,7 +32,7 @@ interface ReservationEntryProps {
 }
 
 // Cloudflare Turnstile site key (publishable)
-const TURNSTILE_SITE_KEY = '0x4AAAAAABkW-7O4UtU7qxG8';
+const TURNSTILE_SITE_KEY = '0x4AAAAAACJeqTerSezL_4lj';
 
 export function ReservationEntry({ onReservationFound, preselectedRiadId }: ReservationEntryProps) {
   const { t } = useLanguage();
