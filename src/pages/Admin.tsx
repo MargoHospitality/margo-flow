@@ -649,19 +649,27 @@ export default function Admin() {
                 </div>
                 <div className="space-y-2">
                   <Label>Assign Properties</Label>
-                  <Select 
-                    value={inviteRiads[0] || ''} 
-                    onValueChange={(v) => setInviteRiads(v ? [v] : [])}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a property..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {riads.filter(r => r.is_active).map(riad => (
-                        <SelectItem key={riad.id} value={riad.id}>{riad.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                    {riads.filter(r => r.is_active).map(riad => (
+                      <div key={riad.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`invite-${riad.id}`}
+                          checked={inviteRiads.includes(riad.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setInviteRiads([...inviteRiads, riad.id]);
+                            } else {
+                              setInviteRiads(inviteRiads.filter(id => id !== riad.id));
+                            }
+                          }}
+                        />
+                        <label htmlFor={`invite-${riad.id}`} className="text-sm cursor-pointer">{riad.name}</label>
+                      </div>
+                    ))}
+                    {riads.filter(r => r.is_active).length === 0 && (
+                      <p className="text-sm text-muted-foreground">No active properties</p>
+                    )}
+                  </div>
                 </div>
                 <Button onClick={handleInviteUser} disabled={isInviting} className="w-full">
                   {isInviting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
@@ -697,35 +705,51 @@ export default function Admin() {
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {filteredUsers.map(userData => (
-                      <div 
-                        key={userData.id}
-                        className={`p-3 border rounded-lg flex items-center justify-between gap-2 ${!userData.isActive ? 'opacity-50' : ''}`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{userData.email}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {userData.fullName || 'No name'} • {userData.role}
-                          </p>
+                    {filteredUsers.map(userData => {
+                      const assignedRiadNames = userData.riadIds
+                        .map(id => riads.find(r => r.id === id)?.name)
+                        .filter(Boolean)
+                        .join(', ');
+                      return (
+                        <div 
+                          key={userData.id}
+                          className={`p-3 border rounded-lg flex items-center justify-between gap-2 ${!userData.isActive ? 'opacity-50' : ''}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{userData.fullName || userData.email}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {userData.email}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${userData.role === 'super_admin' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                                {userData.role === 'super_admin' ? 'Super Admin' : 'Manager'}
+                              </span>
+                              {assignedRiadNames && (
+                                <span className="text-xs text-muted-foreground truncate" title={assignedRiadNames}>
+                                  {assignedRiadNames}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleSelectUser(userData)}
+                            >
+                              <UserCog className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeactivateUser(userData.id, userData.isActive)}
+                            >
+                              {userData.isActive ? 'Deactivate' : 'Activate'}
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleSelectUser(userData)}
-                          >
-                            <UserCog className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeactivateUser(userData.id, userData.isActive)}
-                          >
-                            {userData.isActive ? 'Deactivate' : 'Activate'}
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {filteredUsers.length === 0 && (
                       <p className="text-center text-muted-foreground py-4">No users found</p>
                     )}
@@ -766,19 +790,24 @@ export default function Admin() {
                   </div>
                   <div className="space-y-2">
                     <Label>Assigned Properties</Label>
-                    <Select 
-                      value={editRiads[0] || ''} 
-                      onValueChange={(v) => setEditRiads(v ? [v] : [])}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a property..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {riads.filter(r => r.is_active).map(riad => (
-                          <SelectItem key={riad.id} value={riad.id}>{riad.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                      {riads.filter(r => r.is_active).map(riad => (
+                        <div key={riad.id} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`edit-${riad.id}`}
+                            checked={editRiads.includes(riad.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setEditRiads([...editRiads, riad.id]);
+                              } else {
+                                setEditRiads(editRiads.filter(id => id !== riad.id));
+                              }
+                            }}
+                          />
+                          <label htmlFor={`edit-${riad.id}`} className="text-sm cursor-pointer">{riad.name}</label>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1" onClick={() => setSelectedUser(null)}>
@@ -991,7 +1020,7 @@ export default function Admin() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="at_riad">At Riad</SelectItem>
+                        <SelectItem value="at_riad">At Property</SelectItem>
                         <SelectItem value="to_driver">To Driver</SelectItem>
                       </SelectContent>
                     </Select>
@@ -1132,17 +1161,17 @@ export default function Admin() {
               </Card>
             )}
 
-            {/* Assign Offers to Riads */}
+            {/* Assign Offers to Properties */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Building className="h-5 w-5" />
-                  Assign Offers to Riads
+                  Assign Offers to Properties
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Select Riad</Label>
+                  <Label>Select Property</Label>
                   <Select 
                     value={selectedRiadForOffers || ''} 
                     onValueChange={(v) => {

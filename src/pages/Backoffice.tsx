@@ -156,7 +156,13 @@ export default function Backoffice() {
         filtered = requests.filter(r => r.status === 'pending');
         break;
       case 'all':
-        filtered = requests;
+        // Show only upcoming transports (today and future), not past
+        filtered = requests.filter(r => {
+          const date = parseISO(r.transport_date);
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+          return date >= todayStart && (r.status === 'pending' || r.status === 'confirmed');
+        });
         break;
     }
 
