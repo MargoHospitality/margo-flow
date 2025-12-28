@@ -76,10 +76,10 @@ export default function Index() {
         {step === 'entry' && (
           <div className="text-center mb-8 animate-fade-up">
             <h1 className="font-serif text-2xl md:text-3xl text-foreground mb-3">
-              {t('intro_line_3')}
+              {t('intro_headline')}
             </h1>
             <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-sm mx-auto">
-              {t('intro_line_1')}
+              {t('intro_subline')}
             </p>
           </div>
         )}
