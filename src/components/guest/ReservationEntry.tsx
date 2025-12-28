@@ -50,6 +50,7 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
   const [captchaRequired, setCaptchaRequired] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  const [turnstileReady, setTurnstileReady] = useState(false);
   const turnstileRef = useRef<HTMLDivElement>(null);
   const turnstileWidgetId = useRef<string | null>(null);
   
@@ -62,20 +63,42 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
   // Load Turnstile script
   useEffect(() => {
     if (captchaRequired && typeof window !== 'undefined') {
+      // Check if already loaded
+      if ((window as any).turnstile) {
+        setTurnstileReady(true);
+        return;
+      }
+
       const existingScript = document.querySelector('script[src*="turnstile"]');
       if (!existingScript) {
         const script = document.createElement('script');
-        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad';
         script.async = true;
-        script.defer = true;
+        
+        // Set up global callback for when Turnstile is ready
+        (window as any).onTurnstileLoad = () => {
+          setTurnstileReady(true);
+        };
+        
         document.head.appendChild(script);
+      } else {
+        // Script exists, check if Turnstile is ready
+        const checkReady = setInterval(() => {
+          if ((window as any).turnstile) {
+            setTurnstileReady(true);
+            clearInterval(checkReady);
+          }
+        }, 100);
+        
+        // Cleanup after 10 seconds
+        setTimeout(() => clearInterval(checkReady), 10000);
       }
     }
   }, [captchaRequired]);
 
-  // Render Turnstile widget when required
+  // Render Turnstile widget when script is ready
   useEffect(() => {
-    if (captchaRequired && turnstileRef.current && (window as any).turnstile) {
+    if (captchaRequired && turnstileReady && turnstileRef.current && (window as any).turnstile) {
       // Clear existing widget
       if (turnstileWidgetId.current) {
         try {
@@ -97,7 +120,7 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
         theme: 'light',
       });
     }
-  }, [captchaRequired]);
+  }, [captchaRequired, turnstileReady]);
 
   useEffect(() => {
     fetchRiads();
