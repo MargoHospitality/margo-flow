@@ -389,7 +389,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
                   {t('transport_date')}
                 </Label>
                 <Select value={transportDate} onValueChange={setTransportDate}>
-                  <SelectTrigger className="h-14 rounded-xl border-2 text-base">
+                  <SelectTrigger className="select-mobile">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
