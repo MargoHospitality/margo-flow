@@ -81,18 +81,31 @@ function buildReminderEmailHtml(
     transportType: string;
     transportDate: string;
     transportTime: string;
-    flightTrainNumber?: string;
+    payloadDetails?: Record<string, string>;
     paymentMode: string;
     price: number;
+    isFreeTransfer?: boolean;
     managerEmail?: string;
     managerWhatsapp?: string;
   },
   t: typeof translations.en
 ): string {
-  const paymentModeText = data.paymentMode === 'at_riad' ? t.paymentAtRiad : t.paymentToDriver;
+  const paymentModeText = data.isFreeTransfer ? t.paymentAtRiad : (data.paymentMode === 'at_riad' ? t.paymentAtRiad : t.paymentToDriver);
   const whatsappLink = data.managerWhatsapp 
     ? `https://wa.me/${data.managerWhatsapp.replace(/\D/g, '')}`
     : null;
+
+  // Build transport details rows from payloadDetails
+  const transportDetailsHtml = Object.entries(data.payloadDetails || {})
+    .filter(([key, value]) => !['guest_email', 'guest_whatsapp', 'language'].includes(key) && value && value.trim())
+    .map(([key, value]) => `
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 13px; text-transform: capitalize;">${key.replace(/_/g, ' ')}</span><br>
+                          <span style="color: #111827; font-size: 15px; font-weight: 500;">${value}</span>
+                        </td>
+                      </tr>
+    `).join('');
 
   return `
 <!DOCTYPE html>
@@ -107,10 +120,10 @@ function buildReminderEmailHtml(
     <tr>
       <td align="center">
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
-          <!-- Header -->
+          <!-- Header with Logo -->
           <tr>
-            <td style="background: linear-gradient(135deg, #0F4C5C 0%, #1a6b7a 100%); padding: 32px 40px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">Margo Flow</h1>
+            <td style="background-color: #ffffff; padding: 32px 40px; text-align: center; border-bottom: 1px solid #e5e7eb;">
+              <img src="https://fnbqegolwitkgjmlesbc.supabase.co/storage/v1/object/public/assets/margoflow-logo.png" alt="Margo Flow" style="height: 40px; width: auto;" />
             </td>
           </tr>
           
@@ -159,14 +172,8 @@ function buildReminderEmailHtml(
                           <span style="color: #92400e; font-size: 18px; font-weight: 700;">${data.transportTime}</span>
                         </td>
                       </tr>
-                      ${data.flightTrainNumber ? `
-                      <tr>
-                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
-                          <span style="color: #6b7280; font-size: 13px;">${t.flightTrain}</span><br>
-                          <span style="color: #111827; font-size: 15px; font-weight: 500;">${data.flightTrainNumber}</span>
-                        </td>
-                      </tr>
-                      ` : ''}
+                      ${transportDetailsHtml}
+                      ${!data.isFreeTransfer ? `
                       <tr>
                         <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
                           <span style="color: #6b7280; font-size: 13px;">${t.paymentMethod}</span><br>
@@ -179,6 +186,14 @@ function buildReminderEmailHtml(
                           <span style="color: #0F4C5C; font-size: 24px; font-weight: 700;">${data.price} MAD</span>
                         </td>
                       </tr>
+                      ` : `
+                      <tr>
+                        <td style="padding: 8px 0; background-color: #ecfdf5;">
+                          <span style="color: #059669; font-size: 13px;">🎁 ${t.paymentMethod}</span><br>
+                          <span style="color: #059669; font-size: 18px; font-weight: 700;">Complimentary Transfer</span>
+                        </td>
+                      </tr>
+                      `}
                     </table>
                   </td>
                 </tr>
@@ -295,6 +310,7 @@ const handler = async (req: Request): Promise<Response> => {
         payment_mode,
         guest_comment,
         payload_details,
+        is_free_transfer,
         riad:riads!transport_requests_riad_id_fkey (
           name,
           manager_email,
@@ -369,9 +385,6 @@ const handler = async (req: Request): Promise<Response> => {
       const transportType = language === 'fr' 
         ? (offer?.name_fr || offer?.name || 'Transport')
         : (offer?.name || 'Transport');
-      
-      const flightTrainNumber = (request.payload_details as any)?.flightNumber || 
-                                (request.payload_details as any)?.trainNumber;
 
       try {
         const emailHtml = buildReminderEmailHtml(
@@ -381,9 +394,10 @@ const handler = async (req: Request): Promise<Response> => {
             transportType,
             transportDate: request.transport_date,
             transportTime: request.transport_time,
-            flightTrainNumber,
+            payloadDetails: request.payload_details as Record<string, string>,
             paymentMode: request.payment_mode,
             price: request.computed_price,
+            isFreeTransfer: (request as any).is_free_transfer,
             managerEmail: riad?.manager_email,
             managerWhatsapp: riad?.manager_whatsapp,
           },
