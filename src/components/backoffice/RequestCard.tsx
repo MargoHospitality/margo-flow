@@ -90,16 +90,19 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             .eq('name', request.riad.name)
             .single();
 
+          // Use the guest's language from when they submitted, not the manager's current language
+          const guestLanguage = (request.payload_details?.language as 'en' | 'fr') || 'en';
+
           await supabase.functions.invoke('notify-client', {
             body: {
               transportRequestId: request.id,
-              language: language,
+              language: guestLanguage,
               guestName: `${request.reservation.guest_first_name || ''} ${request.reservation.guest_last_name}`.trim(),
               guestEmail: guestEmail,
               guestPhone: guestPhone || undefined,
               propertyName: request.riad.name,
               reservationId: request.reservation_id,
-              transportType: language === 'fr' && request.transport_offer.name_fr 
+              transportType: guestLanguage === 'fr' && request.transport_offer.name_fr 
                 ? request.transport_offer.name_fr 
                 : request.transport_offer.name,
               transportDate: format(parseISO(request.transport_date), 'PPP'),
