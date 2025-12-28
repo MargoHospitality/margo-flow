@@ -45,57 +45,68 @@ export function ReservationLookup({ riadId, cloudbedsPropertyId, onReservationFo
     setIsLoading(true);
 
     try {
-      // Build query (canonical identification = reservation_id + riad_id)
-      let query = supabase
-        .from('reservations')
-        .select(`
-          reservation_id,
-          guest_first_name,
-          guest_last_name,
-          check_in_date,
-          status,
-          riad_id,
-          riads!inner(name, cloudbeds_property_id)
-        `)
-        .eq('reservation_id', reservationId.trim())
-        .eq('check_in_date', checkInDate);
+      // Use security definer function to validate reservation exists (no PII exposed)
+      const { data: validationData, error: validationError } = await supabase.rpc(
+        'validate_reservation_exists',
+        { _reservation_id: reservationId.trim() }
+      );
 
-      if (riadId) {
-        query = query.eq('riad_id', riadId);
-      }
+      if (validationError) throw validationError;
 
-      const { data, error } = await query.maybeSingle();
+      // If found locally via security function
+      if (validationData && validationData.length > 0) {
+        const reservation = validationData[0];
+        
+        // Check if check-in date matches
+        if (reservation.check_in_date !== checkInDate) {
+          toast.error(t('check_in_date_mismatch') || 'The check-in date does not match our records.');
+          return;
+        }
 
-      if (error) throw error;
+        // Check if riad matches (if specified)
+        if (riadId && reservation.riad_id !== riadId) {
+          toast.error(t('reservation_not_found'));
+          return;
+        }
 
-      // If found locally, use it
-      if (data) {
         // Check if reservation is still valid
-        if (data.status === 'canceled' || data.status === 'no_show') {
+        if (reservation.status === 'canceled' || reservation.status === 'no_show') {
           toast.error(t('reservation_invalid'));
           return;
         }
 
-        // Check if transport request already exists
-        const { data: existingRequest } = await supabase
-          .from('transport_requests')
-          .select('id, status')
-          .eq('reservation_id', data.reservation_id)
-          .in('status', ['pending', 'confirmed'])
-          .maybeSingle();
+        // Check if transport request already exists using security function
+        const { data: existingRequests } = await supabase.rpc(
+          'get_transport_request_by_reservation',
+          { _reservation_id: reservationId.trim() }
+        );
 
-        if (existingRequest) {
+        const hasActiveRequest = existingRequests?.some(
+          (req: any) => req.status === 'pending' || req.status === 'confirmed'
+        );
+
+        if (hasActiveRequest) {
           toast.error(t('existing_request'));
           return;
         }
 
+        // Get riad name using public function
+        const { data: riadData } = await supabase.rpc(
+          'get_public_riad',
+          { _riad_id: reservation.riad_id }
+        );
+
+        const riadName = riadData?.[0]?.name || 'Unknown';
+
+        // Note: Guest name not available via public function for security
+        // The Cloudbeds lookup or edge function will provide full data
         onReservationFound({
-          reservation_id: data.reservation_id,
-          guest_first_name: data.guest_first_name,
-          guest_last_name: data.guest_last_name,
-          check_in_date: data.check_in_date,
-          riad_id: data.riad_id,
-          riad_name: (data.riads as { name: string }).name,
+          reservation_id: reservationId.trim(),
+          guest_first_name: null,
+          guest_last_name: 'Guest',
+          check_in_date: reservation.check_in_date,
+          riad_id: reservation.riad_id,
+          riad_name: riadName,
         });
         return;
       }

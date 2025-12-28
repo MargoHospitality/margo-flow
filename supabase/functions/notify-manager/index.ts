@@ -11,6 +11,7 @@ const corsHeaders = {
 interface NotifyManagerRequest {
   transportRequestId: string;
   reservationId: string;
+  riadId: string; // Used to fetch manager contact info securely
   propertyName: string;
   guestName: string;
   transportType: string;
@@ -18,8 +19,6 @@ interface NotifyManagerRequest {
   transportTime: string;
   flightTrainNumber?: string;
   guestComment?: string;
-  managerEmail: string;
-  managerPhone?: string; // WhatsApp number in E.164 format
   appUrl: string;
   isUrgent: boolean; // True if transport is within 48 hours
 }
@@ -231,21 +230,39 @@ const handler = async (req: Request): Promise<Response> => {
     const data: NotifyManagerRequest = await req.json();
     console.log("[notify-manager] Processing notification for:", data.reservationId, "isUrgent:", data.isUrgent);
 
-    // Check if WhatsApp is enabled for this property
-    const { data: riad } = await supabase
+    // Fetch manager contact info securely using service role
+    const { data: riad, error: riadError } = await supabase
       .from("riads")
-      .select("whatsapp_enabled")
-      .eq("name", data.propertyName)
+      .select("manager_email, manager_whatsapp, whatsapp_enabled")
+      .eq("id", data.riadId)
       .single();
 
-    const whatsappEnabled = riad?.whatsapp_enabled ?? false;
+    if (riadError || !riad) {
+      console.error("[notify-manager] Failed to fetch riad:", riadError);
+      return new Response(
+        JSON.stringify({ error: "Riad not found", success: false }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!riad.manager_email) {
+      console.error("[notify-manager] No manager email configured for riad:", data.riadId);
+      return new Response(
+        JSON.stringify({ error: "No manager email configured", success: false }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const managerEmail = riad.manager_email;
+    const managerPhone = riad.manager_whatsapp;
+    const whatsappEnabled = riad.whatsapp_enabled ?? false;
     const notificationType = data.isUrgent ? "manager_urgent" : "manager_new_request";
     
     let whatsappSuccess = false;
     let emailSuccess = false;
 
     // Step 1: For urgent requests, try WhatsApp first (if enabled and phone provided)
-    if (data.isUrgent && whatsappEnabled && data.managerPhone) {
+    if (data.isUrgent && whatsappEnabled && managerPhone) {
       console.log("[notify-manager] Attempting WhatsApp for urgent request...");
       
       // Format arrival date/time for WhatsApp template
@@ -262,7 +279,7 @@ const handler = async (req: Request): Promise<Response> => {
             "Authorization": `Bearer ${supabaseServiceKey}`,
           },
           body: JSON.stringify({
-            to: data.managerPhone,
+            to: managerPhone,
             templateKey: "manager_last_minute_en",
             variables: {
               guestName: data.guestName,
@@ -292,12 +309,18 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("[notify-manager] Sending email notification...");
       
       try {
-        const emailHtml = buildManagerEmailHtml(data, data.isUrgent);
+        // Build email data with manager contact info
+        const emailData = {
+          ...data,
+          managerEmail,
+          managerPhone,
+        };
+        const emailHtml = buildManagerEmailHtml(emailData as any, data.isUrgent);
         const subject = data.isUrgent 
           ? `🚨 URGENT: New Transport Request (#${data.reservationId})`
           : `New Transport Request from Margo Flow (#${data.reservationId})`;
         
-        const emailResponse = await sendEmail([data.managerEmail], subject, emailHtml);
+        const emailResponse = await sendEmail([managerEmail], subject, emailHtml);
         emailSuccess = true;
 
         // Log email attempt
@@ -305,10 +328,10 @@ const handler = async (req: Request): Promise<Response> => {
           transportRequestId: data.transportRequestId,
           notificationType,
           channel: "email",
-          recipientEmail: data.managerEmail,
+          recipientEmail: managerEmail,
           status: "sent",
           providerMessageId: emailResponse.id,
-          isFallback: data.isUrgent && whatsappEnabled && data.managerPhone ? true : false,
+          isFallback: data.isUrgent && whatsappEnabled && managerPhone ? true : false,
           metadata: { isUrgent: data.isUrgent },
         });
 
@@ -320,10 +343,10 @@ const handler = async (req: Request): Promise<Response> => {
           transportRequestId: data.transportRequestId,
           notificationType,
           channel: "email",
-          recipientEmail: data.managerEmail,
+          recipientEmail: managerEmail,
           status: "failed",
           errorMessage: emailErr.message,
-          isFallback: data.isUrgent && whatsappEnabled && data.managerPhone ? true : false,
+          isFallback: data.isUrgent && whatsappEnabled && managerPhone ? true : false,
           metadata: { isUrgent: data.isUrgent },
         });
       }

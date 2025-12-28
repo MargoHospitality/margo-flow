@@ -226,43 +226,33 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
 
       if (error) throw error;
 
-      // Get manager contact info for notification
-      const { data: riadData } = await supabase
-        .from('riads')
-        .select('manager_email, manager_whatsapp')
-        .eq('id', reservation.riad_id)
-        .single();
-
       // Determine if this is an urgent request (within 48 hours)
       const transportDateObj = parseISO(transportDate);
       const now = new Date();
       const hoursUntilTransport = (transportDateObj.getTime() - now.getTime()) / (1000 * 60 * 60);
       const isUrgent = hoursUntilTransport <= 48;
 
-      // Send manager notification (WhatsApp for urgent, email for non-urgent)
-      if (riadData?.manager_email) {
-        try {
-          await supabase.functions.invoke('notify-manager', {
-            body: {
-              transportRequestId: insertedData.id,
-              reservationId: reservation.reservation_id,
-              propertyName: reservation.riad_name,
-              guestName: `${reservation.guest_first_name || ''} ${reservation.guest_last_name}`.trim(),
-              transportType: language === 'fr' && selectedOffer.name_fr ? selectedOffer.name_fr : selectedOffer.name,
-              transportDate: format(transportDateObj, 'PPP'),
-              transportTime: transportTime,
-              flightTrainNumber: dynamicFields.flight_number || dynamicFields.train_number,
-              guestComment: guestComment.trim() || undefined,
-              managerEmail: riadData.manager_email,
-              managerPhone: riadData.manager_whatsapp,
-              appUrl: window.location.origin,
-              isUrgent,
-            },
-          });
-        } catch (notificationError) {
-          console.error('Error sending manager notification:', notificationError);
-          // Don't fail the request if notification fails
-        }
+      // Send manager notification - edge function fetches manager contact info securely
+      try {
+        await supabase.functions.invoke('notify-manager', {
+          body: {
+            transportRequestId: insertedData.id,
+            reservationId: reservation.reservation_id,
+            riadId: reservation.riad_id,
+            propertyName: reservation.riad_name,
+            guestName: `${reservation.guest_first_name || ''} ${reservation.guest_last_name}`.trim(),
+            transportType: language === 'fr' && selectedOffer.name_fr ? selectedOffer.name_fr : selectedOffer.name,
+            transportDate: format(transportDateObj, 'PPP'),
+            transportTime: transportTime,
+            flightTrainNumber: dynamicFields.flight_number || dynamicFields.train_number,
+            guestComment: guestComment.trim() || undefined,
+            appUrl: window.location.origin,
+            isUrgent,
+          },
+        });
+      } catch (notificationError) {
+        console.error('Error sending manager notification:', notificationError);
+        // Don't fail the request if notification fails
       }
 
       toast.success(t('request_submitted'));

@@ -24,13 +24,14 @@ export function RiadSelector({ onSelect }: RiadSelectorProps) {
 
   async function fetchRiads() {
     try {
-      const { data, error } = await supabase
-        .from('riads')
-        .select('id, name, manager_whatsapp')
-        .order('name');
+      // Use security definer function - only returns non-sensitive fields
+      const { data, error } = await supabase.rpc('get_public_riads');
 
       if (error) throw error;
-      setRiads(data || []);
+      
+      // Sort by name client-side since RPC doesn't support order
+      const sorted = (data || []).sort((a, b) => a.name.localeCompare(b.name));
+      setRiads(sorted);
     } catch (error) {
       console.error('Error fetching riads:', error);
     } finally {
