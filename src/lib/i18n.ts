@@ -113,6 +113,15 @@ export const translations = {
     status_confirmed: 'Confirmed',
     status_rejected: 'Rejected',
     status_canceled: 'Canceled',
+    status_cancelled: 'Cancelled',
+    status_canceled_due_to_reservation: 'Cancelled (Reservation)',
+    
+    // Cancel transport
+    cancel_transport: 'Cancel Transport',
+    cancel_transport_confirm: 'Are you sure you want to cancel this transport?',
+    cancel_reason_label: 'Cancellation Reason',
+    cancel_reason_placeholder: 'Enter reason for cancellation...',
+    transport_cancelled: 'Transport cancelled successfully',
     
     // Back-office menu
     today_transfers: 'Today',
@@ -257,6 +266,15 @@ export const translations = {
     status_confirmed: 'Confirmé',
     status_rejected: 'Rejeté',
     status_canceled: 'Annulé',
+    status_cancelled: 'Annulé',
+    status_canceled_due_to_reservation: 'Annulé (Réservation)',
+    
+    // Cancel transport
+    cancel_transport: 'Annuler le Transport',
+    cancel_transport_confirm: 'Êtes-vous sûr de vouloir annuler ce transport ?',
+    cancel_reason_label: 'Motif d\'annulation',
+    cancel_reason_placeholder: 'Entrez le motif d\'annulation...',
+    transport_cancelled: 'Transport annulé avec succès',
     
     // Back-office menu
     today_transfers: 'Aujourd\'hui',

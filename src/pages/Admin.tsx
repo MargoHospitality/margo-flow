@@ -11,9 +11,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Search, UserCog, Shield, UserPlus, Users, Building, Truck, MapPin, Cloud, MessageSquare } from 'lucide-react';
+import { Loader2, ArrowLeft, Search, UserCog, Shield, UserPlus, Users, Building, Truck, MapPin, Cloud, MessageSquare, Filter } from 'lucide-react';
 import CloudbedsIntegration from '@/components/admin/CloudbedsIntegration';
 import WhatsAppMonitoring from '@/components/admin/WhatsAppMonitoring';
+import { SearchablePropertySelect } from '@/components/admin/SearchablePropertySelect';
+import { Badge } from '@/components/ui/badge';
 import margoflowLogo from '@/assets/margoflow-logo.png';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -82,6 +84,8 @@ export default function Admin() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [searchEmail, setSearchEmail] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | AppRole>('all');
+  const [userActiveFilter, setUserActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [editRole, setEditRole] = useState<AppRole>('manager');
   const [editFullName, setEditFullName] = useState('');
@@ -537,12 +541,22 @@ export default function Admin() {
     }
   }
 
-  const filteredUsers = searchEmail
-    ? users.filter(u => 
-        u.email.toLowerCase().includes(searchEmail.toLowerCase()) ||
-        (u.fullName && u.fullName.toLowerCase().includes(searchEmail.toLowerCase()))
-      )
-    : users;
+  const filteredUsers = users.filter(u => {
+    // Search filter
+    const matchesSearch = !searchEmail || 
+      u.email.toLowerCase().includes(searchEmail.toLowerCase()) ||
+      (u.fullName && u.fullName.toLowerCase().includes(searchEmail.toLowerCase()));
+    
+    // Role filter
+    const matchesRole = userRoleFilter === 'all' || u.role === userRoleFilter;
+    
+    // Active filter
+    const matchesActive = userActiveFilter === 'all' || 
+      (userActiveFilter === 'active' && u.isActive) ||
+      (userActiveFilter === 'inactive' && !u.isActive);
+    
+    return matchesSearch && matchesRole && matchesActive;
+  });
 
   if (authLoading) {
     return (
@@ -649,27 +663,12 @@ export default function Admin() {
                 </div>
                 <div className="space-y-2">
                   <Label>Assign Properties</Label>
-                  <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
-                    {riads.filter(r => r.is_active).map(riad => (
-                      <div key={riad.id} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`invite-${riad.id}`}
-                          checked={inviteRiads.includes(riad.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setInviteRiads([...inviteRiads, riad.id]);
-                            } else {
-                              setInviteRiads(inviteRiads.filter(id => id !== riad.id));
-                            }
-                          }}
-                        />
-                        <label htmlFor={`invite-${riad.id}`} className="text-sm cursor-pointer">{riad.name}</label>
-                      </div>
-                    ))}
-                    {riads.filter(r => r.is_active).length === 0 && (
-                      <p className="text-sm text-muted-foreground">No active properties</p>
-                    )}
-                  </div>
+                  <SearchablePropertySelect
+                    properties={riads}
+                    selectedIds={inviteRiads}
+                    onChange={setInviteRiads}
+                    placeholder="Search and select properties..."
+                  />
                 </div>
                 <Button onClick={handleInviteUser} disabled={isInviting} className="w-full">
                   {isInviting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
@@ -687,13 +686,35 @@ export default function Admin() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Search by email or name..."
-                    value={searchEmail}
-                    onChange={(e) => setSearchEmail(e.target.value)}
-                    className="flex-1"
-                  />
+                {/* Search and Filters */}
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex-1 min-w-[200px]">
+                    <Input
+                      placeholder="Search by email or name..."
+                      value={searchEmail}
+                      onChange={(e) => setSearchEmail(e.target.value)}
+                    />
+                  </div>
+                  <Select value={userRoleFilter} onValueChange={(v) => setUserRoleFilter(v as 'all' | AppRole)}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue placeholder="Role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="super_admin">Super Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={userActiveFilter} onValueChange={(v) => setUserActiveFilter(v as 'all' | 'active' | 'inactive')}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button variant="outline" size="icon" onClick={fetchUsers}>
                     <Search className="h-4 w-4" />
                   </Button>
@@ -708,8 +729,10 @@ export default function Admin() {
                     {filteredUsers.map(userData => {
                       const assignedRiadNames = userData.riadIds
                         .map(id => riads.find(r => r.id === id)?.name)
-                        .filter(Boolean)
-                        .join(', ');
+                        .filter(Boolean);
+                      const displayedNames = assignedRiadNames.slice(0, 2);
+                      const remainingCount = assignedRiadNames.length - 2;
+                      
                       return (
                         <div 
                           key={userData.id}
@@ -720,14 +743,19 @@ export default function Admin() {
                             <p className="text-xs text-muted-foreground truncate">
                               {userData.email}
                             </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className={`text-xs px-1.5 py-0.5 rounded ${userData.role === 'super_admin' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                              <Badge variant={userData.role === 'super_admin' ? 'default' : 'secondary'} className="text-xs">
                                 {userData.role === 'super_admin' ? 'Super Admin' : 'Manager'}
-                              </span>
-                              {assignedRiadNames && (
-                                <span className="text-xs text-muted-foreground truncate" title={assignedRiadNames}>
-                                  {assignedRiadNames}
-                                </span>
+                              </Badge>
+                              {displayedNames.map((name, i) => (
+                                <Badge key={i} variant="outline" className="text-xs">
+                                  {name}
+                                </Badge>
+                              ))}
+                              {remainingCount > 0 && (
+                                <Badge variant="outline" className="text-xs" title={assignedRiadNames.join(', ')}>
+                                  +{remainingCount} more
+                                </Badge>
                               )}
                             </div>
                           </div>
@@ -790,24 +818,12 @@ export default function Admin() {
                   </div>
                   <div className="space-y-2">
                     <Label>Assigned Properties</Label>
-                    <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
-                      {riads.filter(r => r.is_active).map(riad => (
-                        <div key={riad.id} className="flex items-center gap-2">
-                          <Checkbox
-                            id={`edit-${riad.id}`}
-                            checked={editRiads.includes(riad.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setEditRiads([...editRiads, riad.id]);
-                              } else {
-                                setEditRiads(editRiads.filter(id => id !== riad.id));
-                              }
-                            }}
-                          />
-                          <label htmlFor={`edit-${riad.id}`} className="text-sm cursor-pointer">{riad.name}</label>
-                        </div>
-                      ))}
-                    </div>
+                    <SearchablePropertySelect
+                      properties={riads}
+                      selectedIds={editRiads}
+                      onChange={setEditRiads}
+                      placeholder="Search and select properties..."
+                    />
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1" onClick={() => setSelectedUser(null)}>
