@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 interface TransportRequest {
   id: string;
   reservation_id: string;
+  riad_id: string;
   transport_date: string;
   transport_time: string;
   pax: number;
@@ -117,13 +118,14 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
         }
       }
 
-      // Add internal note to Cloudbeds (non-blocking, Massiba only)
+      // Add internal note to Cloudbeds (non-blocking)
       try {
         const noteResult = await supabase.functions.invoke('cloudbeds-add-note', {
           body: {
             transport_request_id: request.id,
             reservation_id: request.reservation_id,
-            riad_name: request.riad.name,
+            riad_id: request.riad_id,
+            riad_name: request.riad.name, // legacy fallback
             guest_name: `${request.reservation.guest_first_name || ''} ${request.reservation.guest_last_name}`.trim(),
             transport_offer_name: request.transport_offer.name,
             transport_date: format(parseISO(request.transport_date), 'dd/MM/yyyy'),
@@ -135,16 +137,27 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             is_free_transfer: request.is_free_transfer,
           },
         });
-        
-        if (noteResult.data?.success && noteResult.data?.note_created) {
-          console.log('Cloudbeds note added successfully');
-        } else if (noteResult.data?.skipped_reason) {
-          console.log('Cloudbeds note skipped:', noteResult.data.skipped_reason);
-        } else if (noteResult.data?.error) {
-          console.error('Cloudbeds note error:', noteResult.data.error);
+
+        const d = noteResult.data as any;
+
+        if (d?.success && d?.note_created) {
+          console.log('Cloudbeds note added successfully', { reservation_id: d.reservation_id, property_id: d.property_id });
+        } else if (d?.skipped_reason) {
+          console.log('Cloudbeds note skipped:', d.skipped_reason, { reservation_id: d.reservation_id, property_id: d.property_id });
+          if (isSuperAdmin) {
+            toast.message('Cloudbeds note skipped', {
+              description: `${d.skipped_reason} (reservation ${d.reservation_id ?? request.reservation_id})`,
+            });
+          }
+        } else if (d?.error) {
+          console.error('Cloudbeds note error:', d.error, d);
+          toast.error('Cloudbeds note failed', {
+            description: `${d.cloudbeds_status_code ? `HTTP ${d.cloudbeds_status_code} – ` : ''}${(d.cloudbeds_message || d.error || '').toString().slice(0, 120)}`,
+          });
         }
       } catch (noteError) {
         console.error('Error adding Cloudbeds note:', noteError);
+        toast.error('Cloudbeds note failed');
       }
 
       toast.success(t('confirm_transport'));

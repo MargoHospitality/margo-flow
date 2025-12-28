@@ -13,6 +13,7 @@ import { format, isToday, isTomorrow, addDays, parseISO, isAfter, isBefore } fro
 interface TransportRequest {
   id: string;
   reservation_id: string;
+  riad_id: string;
   transport_date: string;
   transport_time: string;
   pax: number;
@@ -77,6 +78,7 @@ export default function Backoffice() {
         .select(`
           id,
           reservation_id,
+          riad_id,
           transport_date,
           transport_time,
           pax,
