@@ -178,16 +178,18 @@ serve(async (req) => {
   console.log(`[cloudbeds-lookup] Request from IP: ${clientIP}`);
 
   try {
-    const { reservation_id, property_id, check_in_date, turnstile_token } = await req.json();
+    const { reservation_id, property_id, riad_id, check_in_date, turnstile_token } = await req.json();
     
     const reservationIdStr = String(reservation_id).trim();
     const checkInDateStr = check_in_date ? String(check_in_date).trim() : '';
     const propertyIdStr = property_id ? String(property_id).trim() : '';
+    const riadIdStr = riad_id ? String(riad_id).trim() : '';
     
     console.log(`[cloudbeds-lookup] ====== START LOOKUP ======`);
     console.log(`[cloudbeds-lookup] Reservation ID: ${reservationIdStr}`);
     console.log(`[cloudbeds-lookup] Check-in Date: ${checkInDateStr || '(not provided)'}`);
     console.log(`[cloudbeds-lookup] Property ID: ${propertyIdStr || '(not provided)'}`);
+    console.log(`[cloudbeds-lookup] Riad ID: ${riadIdStr || '(not provided)'}`);
 
     if (!reservationIdStr) {
       console.log('[cloudbeds-lookup] ERROR: Reservation ID is required');
@@ -262,9 +264,19 @@ serve(async (req) => {
 
     console.log(`[cloudbeds-lookup] Found ${syncEnabledRiads.length} sync-enabled riads`);
 
-    // If property_id provided, filter to that specific property
+    // If riad_id provided, filter to that specific riad
     let targetRiads = syncEnabledRiads;
-    if (propertyIdStr) {
+    if (riadIdStr) {
+      targetRiads = syncEnabledRiads.filter(r => r.id === riadIdStr);
+      if (targetRiads.length === 0) {
+        console.log(`[cloudbeds-lookup] Riad ${riadIdStr} is not configured for Cloudbeds sync`);
+        return new Response(
+          JSON.stringify({ found: false, error: 'Property not configured for Cloudbeds sync' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else if (propertyIdStr) {
+      // Legacy: filter by property_id
       targetRiads = syncEnabledRiads.filter(r => r.cloudbeds_property_id === propertyIdStr);
       if (targetRiads.length === 0) {
         console.log(`[cloudbeds-lookup] Property ${propertyIdStr} is not configured for Cloudbeds sync`);
