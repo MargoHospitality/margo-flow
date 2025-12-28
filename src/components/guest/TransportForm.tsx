@@ -212,26 +212,24 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
         guest_whatsapp: guestWhatsapp.trim(),
       };
 
-      const { data: insertedData, error } = await supabase
-        .from('transport_requests')
-        .insert({
-          reservation_id: reservation.reservation_id,
-          riad_id: reservation.riad_id,
-          transport_offer_id: selectedOffer.id,
-          transport_date: transportDate,
-          transport_time: transportTime,
-          pax,
-          computed_price: computedPrice,
-          payment_mode: isFreeTransfer ? 'at_riad' : selectedOffer.payment_mode,
-          payload_details: payloadDetails,
-          guest_comment: guestComment.trim() || null,
-          status: 'pending',
-          is_free_transfer: isFreeTransfer,
-        })
-        .select()
-        .single();
+      // Use RPC function to bypass RLS issues for anonymous users
+      const { data: newId, error } = await supabase.rpc('create_transport_request_public', {
+        _reservation_id: reservation.reservation_id,
+        _riad_id: reservation.riad_id,
+        _transport_offer_id: selectedOffer.id,
+        _transport_date: transportDate,
+        _transport_time: transportTime,
+        _pax: pax,
+        _computed_price: computedPrice,
+        _payment_mode: isFreeTransfer ? 'at_riad' : selectedOffer.payment_mode,
+        _payload_details: payloadDetails,
+        _guest_comment: guestComment.trim() || null,
+        _is_free_transfer: isFreeTransfer,
+      });
 
       if (error) throw error;
+
+      const insertedData = { id: newId };
 
       // Determine if this is an urgent request (within 48 hours)
       const transportDateObj = parseISO(transportDate);
