@@ -14,8 +14,7 @@ import { cn } from '@/lib/utils';
 interface Riad {
   id: string;
   name: string;
-  manager_whatsapp: string | null;
-  cloudbeds_property_id?: string | null;
+  whatsapp_enabled?: boolean;
 }
 
 interface ReservationData {
@@ -145,13 +144,14 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
 
   async function fetchRiads() {
     try {
-      const { data, error } = await supabase
-        .from('riads')
-        .select('id, name, manager_whatsapp, cloudbeds_property_id')
-        .order('name');
+      // Use security definer function - only returns non-sensitive fields
+      const { data, error } = await supabase.rpc('get_public_riads');
 
       if (error) throw error;
-      setRiads(data || []);
+      
+      // Sort by name client-side since RPC doesn't support order
+      const sorted = (data || []).sort((a, b) => a.name.localeCompare(b.name));
+      setRiads(sorted);
     } catch (error) {
       console.error('Error fetching riads:', error);
       toast.error(t('error'));
@@ -241,12 +241,12 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
         }
       }
 
-      // If not found locally, try Cloudbeds on-demand lookup for Massiba only
-      if (!resolved && selectedRiad.cloudbeds_property_id === '9462') {
+      // If not found locally, try Cloudbeds on-demand lookup
+      if (!resolved) {
         const { data: lookupData, error: lookupError } = await supabase.functions.invoke('cloudbeds-lookup', {
           body: {
             reservation_id: reservationIdStr,
-            property_id: '9462',
+            riad_id: selectedRiad.id,
             check_in_date: checkInDateStr,
             turnstile_token: captchaToken,
           },
@@ -323,8 +323,8 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
           check_in_date: resolved.check_in_date,
           riad_id: resolved.riad_id,
           riad_name: (resolved.riads as { name: string }).name,
-        },
-        selectedRiad.manager_whatsapp || undefined
+        }
+        // WhatsApp info now fetched server-side by notify-manager edge function
       );
     } catch (error) {
       console.error('Error looking up reservation:', error);
