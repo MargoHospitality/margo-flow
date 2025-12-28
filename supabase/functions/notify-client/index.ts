@@ -19,7 +19,7 @@ interface NotifyClientRequest {
   transportType: string;
   transportDate: string;
   transportTime: string;
-  flightTrainNumber?: string;
+  payloadDetails?: Record<string, string>; // All dynamic fields
   guestComment?: string;
   paymentMode: 'at_riad' | 'to_driver';
   price: number;
@@ -105,6 +105,21 @@ function buildConfirmationEmailHtml(data: NotifyClientRequest, t: typeof transla
     ? `https://wa.me/${data.managerWhatsapp.replace(/\D/g, '')}`
     : null;
 
+  // Get all transport-specific fields (exclude contact info)
+  const transportFields = Object.entries(data.payloadDetails || {})
+    .filter(([key]) => !['guest_email', 'guest_whatsapp'].includes(key))
+    .filter(([, value]) => value && value.trim());
+
+  // Build transport details rows
+  const transportDetailsHtml = transportFields.map(([key, value]) => `
+    <tr>
+      <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+        <span style="color: #6b7280; font-size: 13px; text-transform: capitalize;">${key.replace(/_/g, ' ')}</span><br>
+        <span style="color: #111827; font-size: 15px; font-weight: 500;">${value}</span>
+      </td>
+    </tr>
+  `).join('');
+
   return `
 <!DOCTYPE html>
 <html>
@@ -171,14 +186,7 @@ function buildConfirmationEmailHtml(data: NotifyClientRequest, t: typeof transla
                           <span style="color: #92400e; font-size: 18px; font-weight: 700;">${data.transportTime}</span>
                         </td>
                       </tr>
-                      ${data.flightTrainNumber ? `
-                      <tr>
-                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
-                          <span style="color: #6b7280; font-size: 13px;">${t.flightTrain}</span><br>
-                          <span style="color: #111827; font-size: 15px; font-weight: 500;">${data.flightTrainNumber}</span>
-                        </td>
-                      </tr>
-                      ` : ''}
+                      ${transportDetailsHtml}
                       ${data.guestComment ? `
                       <tr>
                         <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">

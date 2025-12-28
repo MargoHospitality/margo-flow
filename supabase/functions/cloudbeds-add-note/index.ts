@@ -17,10 +17,11 @@ interface AddNoteRequest {
   transport_offer_name: string;
   transport_date: string;
   transport_time: string;
-  flight_train_number?: string;
+  payload_details?: Record<string, string>; // All dynamic fields
   payment_mode: string;
   guest_comment?: string;
   price: number;
+  is_free_transfer?: boolean;
 }
 
 interface AddNoteResult {
@@ -152,7 +153,7 @@ serve(async (req) => {
     }
 
     // Format the note content
-    const paymentModeText = body.payment_mode === 'at_riad' ? 'Payment at Riad' : 'Cash to driver';
+    const paymentModeText = body.is_free_transfer ? 'Complimentary Transfer' : (body.payment_mode === 'at_riad' ? 'Payment at Riad' : 'Cash to driver');
     
     let noteContent = `${uniqueMarker}
 [MARGO FLOW] Transport confirmed
@@ -160,12 +161,18 @@ Offer: ${body.transport_offer_name}
 Date: ${body.transport_date}
 Arrival time: ${body.transport_time}`;
 
-    if (body.flight_train_number) {
-      noteContent += `\nFlight/Train: ${body.flight_train_number}`;
+    // Add all dynamic fields from payload_details
+    if (body.payload_details) {
+      Object.entries(body.payload_details)
+        .filter(([key, value]) => !['guest_email', 'guest_whatsapp'].includes(key) && value && value.trim())
+        .forEach(([key, value]) => {
+          const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          noteContent += `\n${formattedKey}: ${value}`;
+        });
     }
 
-    noteContent += `\nPayment mode: ${paymentModeText}
-Price: ${body.price} MAD`;
+    noteContent += `\nPayment mode: ${paymentModeText}`;
+    noteContent += body.is_free_transfer ? '\nPrice: Complimentary' : `\nPrice: ${body.price} MAD`;
 
     if (body.guest_comment) {
       noteContent += `\nGuest comment: ${body.guest_comment}`;

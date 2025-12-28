@@ -251,7 +251,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
             transportType: language === 'fr' && selectedOffer.name_fr ? selectedOffer.name_fr : selectedOffer.name,
             transportDate: format(transportDateObj, 'PPP'),
             transportTime: transportTime,
-            flightTrainNumber: dynamicFields.flight_number || dynamicFields.train_number,
+            payloadDetails: dynamicFields,
             guestComment: guestComment.trim() || undefined,
             appUrl: window.location.origin,
             isUrgent,
