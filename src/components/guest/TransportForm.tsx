@@ -210,6 +210,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
         ...dynamicFields,
         guest_email: guestEmail.trim(),
         guest_whatsapp: guestWhatsapp.trim(),
+        language: language, // Store guest's language for notifications
       };
 
       // Use RPC function to bypass RLS issues for anonymous users
