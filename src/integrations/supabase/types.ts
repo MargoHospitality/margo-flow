@@ -404,6 +404,7 @@ export type Database = {
           created_at: string
           guest_comment: string | null
           id: string
+          is_free_transfer: boolean
           pax: number
           payload_details: Json | null
           payment_mode: Database["public"]["Enums"]["payment_mode"]
@@ -423,6 +424,7 @@ export type Database = {
           created_at?: string
           guest_comment?: string | null
           id?: string
+          is_free_transfer?: boolean
           pax: number
           payload_details?: Json | null
           payment_mode: Database["public"]["Enums"]["payment_mode"]
@@ -442,6 +444,7 @@ export type Database = {
           created_at?: string
           guest_comment?: string | null
           id?: string
+          is_free_transfer?: boolean
           pax?: number
           payload_details?: Json | null
           payment_mode?: Database["public"]["Enums"]["payment_mode"]

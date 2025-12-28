@@ -3,9 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/hooks/useLanguage';
-import { Loader2, AlertTriangle, Car, Check, ArrowLeft, Clock, Users, Calendar, Mail, Phone, Hash, MessageSquare } from 'lucide-react';
+import { Loader2, AlertTriangle, Car, Check, ArrowLeft, Clock, Users, Calendar, Mail, Phone, Hash, MessageSquare, Info, Gift } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { format, addDays, isToday, parseISO } from 'date-fns';
@@ -60,6 +62,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
   const [guestEmail, setGuestEmail] = useState<string>('');
   const [guestWhatsapp, setGuestWhatsapp] = useState<string>('');
   const [guestComment, setGuestComment] = useState<string>('');
+  const [isFreeTransfer, setIsFreeTransfer] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -149,6 +152,9 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
   );
 
   const computedPrice = useMemo(() => {
+    // If free transfer is selected, price is 0
+    if (isFreeTransfer) return 0;
+    
     if (!selectedOffer || !transportTime) return 0;
 
     const timeValue = transportTime.replace(':', '');
@@ -164,7 +170,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
 
     const extraPax = pax - selectedOffer.base_pax;
     return basePrice + extraPax * selectedOffer.extra_pax_price;
-  }, [selectedOffer, transportTime, pax]);
+  }, [selectedOffer, transportTime, pax, isFreeTransfer]);
 
   const handleDynamicFieldChange = (key: string, value: string) => {
     setDynamicFields(prev => ({ ...prev, [key]: value }));
@@ -216,10 +222,11 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
           transport_time: transportTime,
           pax,
           computed_price: computedPrice,
-          payment_mode: selectedOffer.payment_mode,
+          payment_mode: isFreeTransfer ? 'at_riad' : selectedOffer.payment_mode,
           payload_details: payloadDetails,
           guest_comment: guestComment.trim() || null,
           status: 'pending',
+          is_free_transfer: isFreeTransfer,
         })
         .select()
         .single();
@@ -248,6 +255,7 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
             guestComment: guestComment.trim() || undefined,
             appUrl: window.location.origin,
             isUrgent,
+            isFreeTransfer,
           },
         });
       } catch (notificationError) {
@@ -506,17 +514,53 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
               </div>
             </div>
 
+            {/* Free Transfer Checkbox */}
+            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="freeTransfer"
+                  checked={isFreeTransfer}
+                  onCheckedChange={(checked) => setIsFreeTransfer(checked === true)}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Label 
+                      htmlFor="freeTransfer" 
+                      className="text-sm font-medium text-foreground cursor-pointer flex items-center gap-2"
+                    >
+                      <Gift className="h-4 w-4 text-primary" />
+                      {t('free_transfer_label')}
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-sm">{t('free_transfer_tooltip')}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Price Summary */}
             {selectedOffer && (
-              <div className="p-5 rounded-2xl bg-accent/50 border border-border">
+              <div className={`p-5 rounded-2xl border ${isFreeTransfer ? 'bg-status-confirmed/10 border-status-confirmed/30' : 'bg-accent/50 border-border'}`}>
                 <div className="flex justify-between items-center">
                   <span className="font-medium text-foreground">{t('total_price')}</span>
-                  <span className="text-3xl font-serif font-semibold text-primary">
+                  <span className={`text-3xl font-serif font-semibold ${isFreeTransfer ? 'text-status-confirmed' : 'text-primary'}`}>
                     {computedPrice.toFixed(0)} MAD
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {selectedOffer.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
+                  {isFreeTransfer 
+                    ? t('payment_complimentary')
+                    : (selectedOffer.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver'))
+                  }
                 </p>
               </div>
             )}
