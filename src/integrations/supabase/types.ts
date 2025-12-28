@@ -527,6 +527,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_public_riad: {
+        Args: { _riad_id: string }
+        Returns: {
+          cloudbeds_property_id: string
+          id: string
+          is_active: boolean
+          name: string
+          whatsapp_enabled: boolean
+        }[]
+      }
+      get_public_riads: {
+        Args: never
+        Returns: {
+          id: string
+          is_active: boolean
+          name: string
+          whatsapp_enabled: boolean
+        }[]
+      }
+      get_transport_request_by_reservation: {
+        Args: { _reservation_id: string }
+        Returns: {
+          computed_price: number
+          id: string
+          pax: number
+          payment_mode: Database["public"]["Enums"]["payment_mode"]
+          status: Database["public"]["Enums"]["request_status"]
+          transport_date: string
+          transport_offer_id: string
+          transport_time: string
+        }[]
+      }
       has_riad_access: {
         Args: { _riad_id: string; _user_id: string }
         Returns: boolean
@@ -539,6 +571,15 @@ export type Database = {
         Returns: boolean
       }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
+      validate_reservation_exists: {
+        Args: { _property_id?: string; _reservation_id: string }
+        Returns: {
+          check_in_date: string
+          exists_flag: boolean
+          riad_id: string
+          status: Database["public"]["Enums"]["reservation_status"]
+        }[]
+      }
     }
     Enums: {
       app_role: "super_admin" | "manager" | "pending"
