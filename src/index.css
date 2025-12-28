@@ -162,8 +162,15 @@
     color: hsl(var(--status-rejected));
   }
 
-  /* Input styling for mobile */
+  /* Consistent form input styling */
   .input-mobile {
+    @apply h-14 px-4 text-base rounded-xl border-2 border-input bg-background;
+    @apply focus:border-primary focus:ring-0 focus:outline-none;
+    @apply transition-colors duration-200;
+  }
+
+  /* Select trigger matching input-mobile sizing */
+  .select-mobile {
     @apply h-14 px-4 text-base rounded-xl border-2 border-input bg-background;
     @apply focus:border-primary focus:ring-0 focus:outline-none;
     @apply transition-colors duration-200;
