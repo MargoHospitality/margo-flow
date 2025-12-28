@@ -17,7 +17,7 @@ interface NotifyManagerRequest {
   transportType: string;
   transportDate: string;
   transportTime: string;
-  flightTrainNumber?: string;
+  payloadDetails?: Record<string, string>; // All dynamic fields
   guestComment?: string;
   appUrl: string;
   isUrgent: boolean; // True if transport is within 48 hours
@@ -62,6 +62,17 @@ function buildManagerEmailHtml(data: NotifyManagerRequest, isUrgent: boolean): s
               <span style="color: #059669; font-size: 14px; font-weight: 600;">🎁 Complimentary transfer requested</span>
             </td>
           </tr>` : '';
+
+  // Build transport details rows from payloadDetails
+  const transportDetailsHtml = Object.entries(data.payloadDetails || {})
+    .filter(([key, value]) => value && value.trim())
+    .map(([key, value]) => `
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                          <span style="color: #6b7280; font-size: 13px; text-transform: capitalize;">${key.replace(/_/g, ' ')}</span><br>
+                          <span style="color: #111827; font-size: 15px; font-weight: 500;">${value}</span>
+                        </td>
+                      </tr>`).join('');
 
   return `<!DOCTYPE html>
 <html>
@@ -124,17 +135,12 @@ function buildManagerEmailHtml(data: NotifyManagerRequest, isUrgent: boolean): s
                         </td>
                       </tr>
                       <tr>
-                        <td style="padding: 8px 0;${data.flightTrainNumber || data.guestComment ? ' border-bottom: 1px solid #e5e7eb;' : ''}">
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
                           <span style="color: #6b7280; font-size: 13px;">Time</span><br>
                           <span style="color: #111827; font-size: 15px; font-weight: 500;">${data.transportTime}</span>
                         </td>
-                      </tr>${data.flightTrainNumber ? `
-                      <tr>
-                        <td style="padding: 8px 0;${data.guestComment ? ' border-bottom: 1px solid #e5e7eb;' : ''}">
-                          <span style="color: #6b7280; font-size: 13px;">Flight / Train</span><br>
-                          <span style="color: #111827; font-size: 15px; font-weight: 500;">${data.flightTrainNumber}</span>
-                        </td>
-                      </tr>` : ''}${data.guestComment ? `
+                      </tr>
+                      ${transportDetailsHtml}${data.guestComment ? `
                       <tr>
                         <td style="padding: 8px 0;">
                           <span style="color: #6b7280; font-size: 13px;">Comment</span><br>

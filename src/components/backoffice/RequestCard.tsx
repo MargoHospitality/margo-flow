@@ -103,12 +103,13 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
                 : request.transport_offer.name,
               transportDate: format(parseISO(request.transport_date), 'PPP'),
               transportTime: request.transport_time,
-              flightTrainNumber: request.payload_details?.flight_number || request.payload_details?.train_number,
+              payloadDetails: request.payload_details,
               guestComment: request.guest_comment,
               paymentMode: request.payment_mode,
               price: Number(request.computed_price),
               managerEmail: riadData?.manager_email,
               managerWhatsapp: riadData?.manager_whatsapp,
+              isFreeTransfer: request.is_free_transfer,
             },
           });
         } catch (notificationError) {
@@ -127,10 +128,11 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             transport_offer_name: request.transport_offer.name,
             transport_date: format(parseISO(request.transport_date), 'dd/MM/yyyy'),
             transport_time: request.transport_time,
-            flight_train_number: request.payload_details?.flight_number || request.payload_details?.train_number,
+            payload_details: request.payload_details,
             payment_mode: request.payment_mode,
             guest_comment: request.guest_comment,
             price: Number(request.computed_price),
+            is_free_transfer: request.is_free_transfer,
           },
         });
         
@@ -719,12 +721,15 @@ function RequestDetails({
             <span className="text-muted-foreground font-medium">{t('transport_time')}</span>
             <span className="font-bold text-primary">{request.transport_time}</span>
           </div>
-          {flightTrainNumber && (
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{t('flight_number')}</span>
-              <span className="font-medium">{flightTrainNumber}</span>
-            </div>
-          )}
+          {/* Display ALL dynamic transport fields from payload_details */}
+          {Object.entries(request.payload_details || {})
+            .filter(([key]) => !['guest_email', 'guest_whatsapp'].includes(key))
+            .map(([key, value]) => value ? (
+              <div key={key} className="flex items-center justify-between">
+                <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
+                <span className="font-medium">{value}</span>
+              </div>
+            ) : null)}
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">{t('passengers')}</span>
             <span className="font-medium">{request.pax}</span>
