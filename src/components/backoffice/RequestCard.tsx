@@ -232,6 +232,10 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
               <span className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {format(parseISO(request.transport_date), 'dd MMM')}
+              </span>
+              <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 {request.transport_time}
               </span>
