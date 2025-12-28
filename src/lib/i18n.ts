@@ -61,7 +61,9 @@ export const translations = {
     complete_captcha: 'Please complete the verification above.',
     captcha_required: 'Please complete the verification to continue.',
     existing_request: 'A transport request already exists for this reservation.',
-    
+    rate_limited: 'Too many attempts. Please wait a moment.',
+    check_in_date_mismatch: 'The check-in date does not match our records. Please verify and try again.',
+
     // Guest contact info
     guest_contact_title: 'Contact Information',
     guest_contact_explanation: 'These details are required to confirm your transfer and allow the driver to contact you if needed.',
@@ -203,7 +205,9 @@ export const translations = {
     complete_captcha: 'Veuillez compléter la vérification ci-dessus.',
     captcha_required: 'Veuillez compléter la vérification pour continuer.',
     existing_request: 'Une demande de transport existe déjà pour cette réservation.',
-    
+    rate_limited: 'Trop de tentatives. Veuillez patienter un moment.',
+    check_in_date_mismatch: 'La date d\'arrivée ne correspond pas à nos enregistrements. Veuillez vérifier et réessayer.',
+
     // Guest contact info
     guest_contact_title: 'Coordonnées',
     guest_contact_explanation: 'Ces informations sont nécessaires pour confirmer votre transfert et permettre au chauffeur de vous contacter si besoin.',
