@@ -536,6 +536,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_transport_request_public: {
+        Args: {
+          _computed_price: number
+          _guest_comment?: string
+          _is_free_transfer?: boolean
+          _pax: number
+          _payload_details?: Json
+          _payment_mode: Database["public"]["Enums"]["payment_mode"]
+          _reservation_id: string
+          _riad_id: string
+          _transport_date: string
+          _transport_offer_id: string
+          _transport_time: string
+        }
+        Returns: string
+      }
       get_public_riad: {
         Args: { _riad_id: string }
         Returns: {
