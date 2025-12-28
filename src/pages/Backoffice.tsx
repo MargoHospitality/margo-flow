@@ -23,6 +23,7 @@ interface TransportRequest {
   rejection_reason: string | null;
   guest_comment?: string | null;
   created_at: string;
+  is_free_transfer?: boolean;
   riad: { name: string };
   reservation: {
     guest_first_name: string | null;
@@ -86,6 +87,7 @@ export default function Backoffice() {
           rejection_reason,
           guest_comment,
           created_at,
+          is_free_transfer,
           riad:riads(name),
           reservation:reservations(guest_first_name, guest_last_name, check_in_date),
           transport_offer:transport_offers(name, name_fr, type)

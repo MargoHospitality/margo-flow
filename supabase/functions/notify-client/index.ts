@@ -26,6 +26,7 @@ interface NotifyClientRequest {
   managerEmail?: string;
   managerWhatsapp?: string;
   confirmationToken?: string; // For public confirmation link
+  isFreeTransfer?: boolean; // True if complimentary transfer
 }
 
 const translations = {
@@ -43,6 +44,7 @@ const translations = {
     paymentMethod: 'Payment Method',
     paymentAtRiad: 'Payment at Property',
     paymentToDriver: 'Cash to the Driver',
+    paymentComplimentary: 'Complimentary Transfer',
     totalPrice: 'Total Price',
     contactSection: 'If needed, you can contact the property manager directly:',
     contactEmail: 'Email',
@@ -64,6 +66,7 @@ const translations = {
     paymentMethod: 'Mode de Paiement',
     paymentAtRiad: 'Paiement à la Propriété',
     paymentToDriver: 'Espèces au Chauffeur',
+    paymentComplimentary: 'Transfert Offert',
     totalPrice: 'Prix Total',
     contactSection: "Si besoin, vous pouvez contacter le responsable de la propriété:",
     contactEmail: 'Email',
@@ -97,7 +100,7 @@ async function sendEmail(to: string[], subject: string, html: string) {
 }
 
 function buildConfirmationEmailHtml(data: NotifyClientRequest, t: typeof translations.en): string {
-  const paymentModeText = data.paymentMode === 'at_riad' ? t.paymentAtRiad : t.paymentToDriver;
+  const paymentModeText = data.isFreeTransfer ? t.paymentComplimentary : (data.paymentMode === 'at_riad' ? t.paymentAtRiad : t.paymentToDriver);
   const whatsappLink = data.managerWhatsapp 
     ? `https://wa.me/${data.managerWhatsapp.replace(/\D/g, '')}`
     : null;
@@ -184,6 +187,7 @@ function buildConfirmationEmailHtml(data: NotifyClientRequest, t: typeof transla
                         </td>
                       </tr>
                       ` : ''}
+                      ${!data.isFreeTransfer ? `
                       <tr>
                         <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
                           <span style="color: #6b7280; font-size: 13px;">${t.paymentMethod}</span><br>
@@ -196,6 +200,14 @@ function buildConfirmationEmailHtml(data: NotifyClientRequest, t: typeof transla
                           <span style="color: #0F4C5C; font-size: 24px; font-weight: 700;">${data.price} MAD</span>
                         </td>
                       </tr>
+                      ` : `
+                      <tr>
+                        <td style="padding: 8px 0; background-color: #ecfdf5;">
+                          <span style="color: #059669; font-size: 13px;">🎁 ${t.paymentMethod}</span><br>
+                          <span style="color: #059669; font-size: 18px; font-weight: 700;">${paymentModeText}</span>
+                        </td>
+                      </tr>
+                      `}
                     </table>
                   </td>
                 </tr>

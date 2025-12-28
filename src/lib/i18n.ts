@@ -84,6 +84,13 @@ export const translations = {
     total_price: 'Total Price',
     payment_at_riad: 'Payment at Property',
     payment_to_driver: 'Payment to Driver',
+    payment_complimentary: 'Complimentary / Free Transfer',
+    
+    // Free transfer
+    free_transfer_label: 'I benefit from a complimentary (free) transfer',
+    free_transfer_tooltip: 'This usually applies to special offers or direct bookings with multiple nights. If this is your case, feel free to select it — the property will of course double-check everything.',
+    free_transfer_badge: 'Free Transfer',
+    free_transfer_requested: 'Complimentary transfer requested',
     
     // Transport types
     airport_pickup: 'Airport Pickup',
@@ -237,6 +244,13 @@ export const translations = {
     total_price: 'Prix Total',
     payment_at_riad: 'Paiement à la Propriété',
     payment_to_driver: 'Paiement au Chauffeur',
+    payment_complimentary: 'Transfert Offert / Gratuit',
+    
+    // Free transfer
+    free_transfer_label: 'Je bénéficie d\'un transfert offert (gratuit)',
+    free_transfer_tooltip: 'Cela s\'applique généralement aux offres spéciales ou aux réservations directes avec plusieurs nuits. Si c\'est votre cas, n\'hésitez pas à le sélectionner — la propriété vérifiera bien sûr tout cela.',
+    free_transfer_badge: 'Transfert Offert',
+    free_transfer_requested: 'Transfert gratuit demandé',
     
     // Transport types
     airport_pickup: 'Transfert Aéroport',

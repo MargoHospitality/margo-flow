@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
-import { Check, X, Edit2, User, Calendar, Clock, Users, Car, Loader2, Hash, Plane, CreditCard, MessageSquare, Mail, Phone, Ban } from 'lucide-react';
+import { Check, X, Edit2, User, Calendar, Clock, Users, Car, Loader2, Hash, Plane, CreditCard, MessageSquare, Mail, Phone, Ban, Gift } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface TransportRequest {
@@ -25,6 +25,7 @@ interface TransportRequest {
   rejection_reason: string | null;
   guest_comment?: string | null;
   created_at: string;
+  is_free_transfer?: boolean;
   riad: { name: string; manager_email?: string | null; manager_whatsapp?: string | null };
   reservation: {
     guest_first_name: string | null;
@@ -255,13 +256,19 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
           className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
         >
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-foreground truncate">
                 {request.reservation.guest_first_name} {request.reservation.guest_last_name}
               </span>
               <Badge className={`${statusColors[request.status as keyof typeof statusColors]} border text-xs`}>
                 {t(`status_${request.status}` as keyof typeof t)}
               </Badge>
+              {request.is_free_transfer && (
+                <Badge className="bg-status-confirmed/10 text-status-confirmed border-status-confirmed/30 border text-xs">
+                  <Gift className="h-3 w-3 mr-1" />
+                  {t('free_transfer_badge')}
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
               <span className="flex items-center gap-1">
@@ -415,9 +422,17 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
                 {request.reservation.guest_first_name} {request.reservation.guest_last_name}
               </CardTitle>
             </div>
-            <Badge className={`${statusColors[request.status as keyof typeof statusColors]} border`}>
-              {t(`status_${request.status}` as keyof typeof t)}
-            </Badge>
+            <div className="flex flex-col items-end gap-1">
+              <Badge className={`${statusColors[request.status as keyof typeof statusColors]} border`}>
+                {t(`status_${request.status}` as keyof typeof t)}
+              </Badge>
+              {request.is_free_transfer && (
+                <Badge className="bg-status-confirmed/10 text-status-confirmed border-status-confirmed/30 border text-xs">
+                  <Gift className="h-3 w-3 mr-1" />
+                  {t('free_transfer_badge')}
+                </Badge>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -452,14 +467,21 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
           </div>
 
           {/* Payment Info */}
-          <div className="flex justify-between items-center p-3 rounded-lg bg-secondary/50">
+          <div className={`flex justify-between items-center p-3 rounded-lg ${request.is_free_transfer ? 'bg-status-confirmed/10 border border-status-confirmed/20' : 'bg-secondary/50'}`}>
             <div className="flex items-center gap-2 text-sm">
-              <CreditCard className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">
-                {request.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
+              {request.is_free_transfer ? (
+                <Gift className="h-4 w-4 text-status-confirmed" />
+              ) : (
+                <CreditCard className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span className={request.is_free_transfer ? 'text-status-confirmed font-medium' : 'text-muted-foreground'}>
+                {request.is_free_transfer 
+                  ? t('payment_complimentary')
+                  : (request.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver'))
+                }
               </span>
             </div>
-            <span className="text-xl font-display font-bold text-primary">
+            <span className={`text-xl font-display font-bold ${request.is_free_transfer ? 'text-status-confirmed' : 'text-primary'}`}>
               {Number(request.computed_price).toFixed(0)} MAD
             </span>
           </div>
@@ -673,6 +695,14 @@ function RequestDetails({
 }) {
   return (
     <div className="space-y-4">
+      {/* Free Transfer Badge */}
+      {request.is_free_transfer && (
+        <div className="p-3 rounded-lg bg-status-confirmed/10 border border-status-confirmed/20 flex items-center gap-2">
+          <Gift className="h-5 w-5 text-status-confirmed" />
+          <span className="font-medium text-status-confirmed">{t('free_transfer_badge')}</span>
+        </div>
+      )}
+      
       {/* Transport Info Section */}
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">{t('transport_info')}</h4>
@@ -699,11 +729,14 @@ function RequestDetails({
             <span className="text-muted-foreground">{t('passengers')}</span>
             <span className="font-medium">{request.pax}</span>
           </div>
-          <div className="flex items-center justify-between pt-2 border-t border-border">
-            <span className="text-muted-foreground">
-              {request.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
+          <div className={`flex items-center justify-between pt-2 border-t border-border ${request.is_free_transfer ? 'text-status-confirmed' : ''}`}>
+            <span className={request.is_free_transfer ? 'text-status-confirmed font-medium' : 'text-muted-foreground'}>
+              {request.is_free_transfer 
+                ? t('payment_complimentary')
+                : (request.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver'))
+              }
             </span>
-            <span className="text-xl font-bold text-primary">{Number(request.computed_price).toFixed(0)} MAD</span>
+            <span className={`text-xl font-bold ${request.is_free_transfer ? 'text-status-confirmed' : 'text-primary'}`}>{Number(request.computed_price).toFixed(0)} MAD</span>
           </div>
         </div>
       </div>

@@ -21,6 +21,7 @@ interface NotifyManagerRequest {
   guestComment?: string;
   appUrl: string;
   isUrgent: boolean; // True if transport is within 48 hours
+  isFreeTransfer?: boolean; // True if guest selected complimentary transfer
 }
 
 async function sendEmail(to: string[], subject: string, html: string) {
@@ -54,6 +55,13 @@ function buildManagerEmailHtml(data: NotifyManagerRequest, isUrgent: boolean): s
               <span style="color: #dc2626; font-size: 14px; font-weight: 600;">⚠️ URGENT – Transport within 48 hours</span>
             </td>
           </tr>` : '';
+  
+  const freeTransferBanner = data.isFreeTransfer ? `
+          <tr>
+            <td style="background-color: #ecfdf5; padding: 16px 40px; text-align: center; border-bottom: 1px solid #a7f3d0;">
+              <span style="color: #059669; font-size: 14px; font-weight: 600;">🎁 Complimentary transfer requested</span>
+            </td>
+          </tr>` : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -74,6 +82,7 @@ function buildManagerEmailHtml(data: NotifyManagerRequest, isUrgent: boolean): s
             </td>
           </tr>
           ${urgentBanner}
+          ${freeTransferBanner}
           <!-- Content -->
           <tr>
             <td style="padding: 40px;">
