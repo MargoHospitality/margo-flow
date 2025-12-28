@@ -15,9 +15,8 @@ export const translations = {
     next: 'Next',
     
     // Landing page intro
-    intro_line_1: 'Margo Flow helps us arrange your arrival smoothly.',
-    intro_line_2: 'Your property is a MargoFlow partner and uses this platform to manage and organize arrival transfers for its guests, ensuring a smooth and hassle-free experience.',
-    intro_line_3: 'Please enter the information below, and we will take care of the rest.',
+    intro_headline: 'Your arrival, perfectly arranged',
+    intro_subline: "Powered by Margo Flow — we'll take care of your transfer so everything is ready when you arrive.",
     
     // Footer
     footer_copyright: '© 2025 – Created with Love 💙 by',
@@ -175,9 +174,8 @@ export const translations = {
     next: 'Suivant',
     
     // Landing page intro
-    intro_line_1: 'Margo Flow nous aide à organiser votre arrivée en douceur.',
-    intro_line_2: 'Votre propriété est partenaire de MargoFlow et utilise cette plateforme pour gérer et organiser les transferts d\'arrivée de ses clients, garantissant une expérience fluide et sans tracas.',
-    intro_line_3: 'Veuillez entrer les informations ci-dessous, et nous nous occuperons du reste.',
+    intro_headline: 'Votre arrivée, parfaitement organisée',
+    intro_subline: 'Propulsé par Margo Flow — nous nous occupons de votre transfert pour que tout soit prêt à votre arrivée.',
     
     // Footer
     footer_copyright: '© 2025 – Créé avec Amour 💙 par',
