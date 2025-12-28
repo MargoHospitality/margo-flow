@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
-import { Check, X, Edit2, User, Calendar, Clock, Users, Car, Loader2, Hash, Plane, CreditCard, MessageSquare, Mail, Phone } from 'lucide-react';
+import { Check, X, Edit2, User, Calendar, Clock, Users, Car, Loader2, Hash, Plane, CreditCard, MessageSquare, Mail, Phone, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface TransportRequest {
@@ -48,9 +48,11 @@ interface RequestCardProps {
 export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }: RequestCardProps) {
   const { t, language } = useLanguage();
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
   const [editedTime, setEditedTime] = useState(request.transport_time);
   const [editedFlightNumber, setEditedFlightNumber] = useState(request.payload_details?.flight_number || '');
   const [isLoading, setIsLoading] = useState(false);
@@ -59,6 +61,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
     pending: 'bg-amber-light/20 text-amber border-amber/30',
     confirmed: 'bg-teal/10 text-teal border-teal/30',
     rejected: 'bg-destructive/10 text-destructive border-destructive/30',
+    cancelled: 'bg-muted text-muted-foreground border-border',
     canceled_due_to_reservation: 'bg-muted text-muted-foreground border-border',
   };
 
@@ -179,6 +182,36 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
     }
   };
 
+  const handleCancel = async () => {
+    if (!cancelReason.trim()) {
+      toast.error(t('cancel_reason_placeholder'));
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('transport_requests')
+        .update({ 
+          status: 'cancelled',
+          cancellation_reason: cancelReason.trim(),
+          cancelled_at: new Date().toISOString()
+        })
+        .eq('id', request.id);
+
+      if (error) throw error;
+      toast.success(t('transport_cancelled'));
+      setIsCancelDialogOpen(false);
+      setCancelReason('');
+      onUpdate();
+    } catch (error) {
+      console.error('Error cancelling request:', error);
+      toast.error(t('error'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleEdit = async () => {
     setIsLoading(true);
     try {
@@ -291,6 +324,20 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
                 </Button>
               </DialogFooter>
             )}
+            {request.status === 'confirmed' && (
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCancelDialogOpen(true)} disabled={isLoading}>
+                  <Ban className="h-4 w-4 mr-1" />
+                  {t('cancel_transport')}
+                </Button>
+                {isSuperAdmin && (
+                  <Button variant="ghost" onClick={() => setIsEditDialogOpen(true)}>
+                    <Edit2 className="h-4 w-4 mr-1" />
+                    {t('edit_transport')}
+                  </Button>
+                )}
+              </DialogFooter>
+            )}
           </DialogContent>
         </Dialog>
 
@@ -315,6 +362,35 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
               </Button>
               <Button variant="destructive" onClick={handleReject} disabled={isLoading}>
                 {isLoading ? <Loader2 className="animate-spin" /> : t('reject')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Cancel Dialog */}
+        <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('cancel_transport')}</DialogTitle>
+              <DialogDescription>
+                {t('cancel_transport_confirm')}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label>{t('cancel_reason_label')}</Label>
+              <Textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder={t('cancel_reason_placeholder')}
+                className="min-h-[100px]"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCancelDialogOpen(false)}>
+                {t('back')}
+              </Button>
+              <Button variant="destructive" onClick={handleCancel} disabled={isLoading || !cancelReason.trim()}>
+                {isLoading ? <Loader2 className="animate-spin" /> : t('cancel_transport')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -463,16 +539,29 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             </div>
           )}
 
-          {request.status === 'confirmed' && isSuperAdmin && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full"
-              onClick={() => setIsEditDialogOpen(true)}
-            >
-              <Edit2 className="h-4 w-4 mr-1" />
-              {t('edit_transport')}
-            </Button>
+          {request.status === 'confirmed' && (
+            <div className="flex gap-2 pt-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex-1"
+                onClick={() => setIsCancelDialogOpen(true)}
+                disabled={isLoading}
+              >
+                <Ban className="h-4 w-4 mr-1" />
+                {t('cancel_transport')}
+              </Button>
+              {isSuperAdmin && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setIsEditDialogOpen(true)}
+                >
+                  <Edit2 className="h-4 w-4 mr-1" />
+                  {t('edit_transport')}
+                </Button>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -533,6 +622,35 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             </Button>
             <Button onClick={handleEdit} disabled={isLoading}>
               {isLoading ? <Loader2 className="animate-spin" /> : t('save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Dialog */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('cancel_transport')}</DialogTitle>
+            <DialogDescription>
+              {t('cancel_transport_confirm')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>{t('cancel_reason_label')}</Label>
+            <Textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder={t('cancel_reason_placeholder')}
+              className="min-h-[100px]"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCancelDialogOpen(false)}>
+              {t('back')}
+            </Button>
+            <Button variant="destructive" onClick={handleCancel} disabled={isLoading || !cancelReason.trim()}>
+              {isLoading ? <Loader2 className="animate-spin" /> : t('cancel_transport')}
             </Button>
           </DialogFooter>
         </DialogContent>

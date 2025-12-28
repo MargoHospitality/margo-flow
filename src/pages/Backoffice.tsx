@@ -156,20 +156,22 @@ export default function Backoffice() {
         filtered = requests.filter(r => r.status === 'pending');
         break;
       case 'all':
-        // Show only upcoming transports (today and future), not past
+        // Show upcoming transports (today and future), including cancelled
+        // Excludes only past transports, but includes all statuses for upcoming
         filtered = requests.filter(r => {
           const date = parseISO(r.transport_date);
           const todayStart = new Date();
           todayStart.setHours(0, 0, 0, 0);
-          return date >= todayStart && (r.status === 'pending' || r.status === 'confirmed');
+          return date >= todayStart;
         });
         break;
     }
 
-    // Apply search filter
+    // Apply search filter - when searching, search across ALL requests (past + future, all statuses)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(r => 
+      // Search covers everything, not limited by tab filter
+      filtered = requests.filter(r => 
         r.reservation.guest_last_name.toLowerCase().includes(query) ||
         (r.reservation.guest_first_name?.toLowerCase().includes(query)) ||
         r.reservation_id.toLowerCase().includes(query) ||
@@ -179,7 +181,7 @@ export default function Backoffice() {
     }
 
     return filtered;
-  }, [requests, activeTab, searchQuery, today, tomorrow, dayPlusTwo, dayPlusSeven]);
+  }, [requests, activeTab, searchQuery, today, tomorrow, dayPlusSeven]);
 
   const pendingCount = requests.filter(r => r.status === 'pending').length;
   const todayCount = requests.filter(r => isToday(parseISO(r.transport_date)) && (r.status === 'pending' || r.status === 'confirmed')).length;

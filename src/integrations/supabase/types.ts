@@ -398,6 +398,8 @@ export type Database = {
       }
       transport_requests: {
         Row: {
+          cancellation_reason: string | null
+          cancelled_at: string | null
           computed_price: number
           created_at: string
           guest_comment: string | null
@@ -415,6 +417,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
           computed_price: number
           created_at?: string
           guest_comment?: string | null
@@ -432,6 +436,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
           computed_price?: number
           created_at?: string
           guest_comment?: string | null
@@ -589,6 +595,7 @@ export type Database = {
         | "confirmed"
         | "rejected"
         | "canceled_due_to_reservation"
+        | "cancelled"
       reservation_status:
         | "confirmed"
         | "checked_in"
@@ -734,6 +741,7 @@ export const Constants = {
         "confirmed",
         "rejected",
         "canceled_due_to_reservation",
+        "cancelled",
       ],
       reservation_status: [
         "confirmed",
