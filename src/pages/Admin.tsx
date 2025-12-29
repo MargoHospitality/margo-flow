@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Search, UserCog, Shield, UserPlus, Users, Building, Truck, MapPin, Cloud, MessageSquare, Filter } from 'lucide-react';
+import { Loader2, ArrowLeft, Search, UserCog, Shield, UserPlus, Users, Building, Truck, MapPin, Cloud, MessageSquare, Filter, MailCheck, RefreshCw, KeyRound, Clock } from 'lucide-react';
 import CloudbedsIntegration from '@/components/admin/CloudbedsIntegration';
 import WhatsAppMonitoring from '@/components/admin/WhatsAppMonitoring';
 import { SearchablePropertySelect } from '@/components/admin/SearchablePropertySelect';
@@ -64,6 +64,8 @@ const TRANSPORT_TYPES: { value: TransportType; label: string }[] = [
   { value: 'bus_station_pickup', label: 'Bus Station Pickup' },
 ];
 
+type UserStatus = 'invited' | 'active' | 'disabled';
+
 interface UserData {
   id: string;
   email: string;
@@ -71,6 +73,10 @@ interface UserData {
   isActive: boolean;
   role: AppRole;
   riadIds: string[];
+  status: UserStatus;
+  lastSignInAt: string | null;
+  emailConfirmedAt: string | null;
+  createdAt: string;
 }
 
 export default function Admin() {
@@ -85,7 +91,7 @@ export default function Admin() {
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [searchEmail, setSearchEmail] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | AppRole>('all');
-  const [userActiveFilter, setUserActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [userStatusFilter, setUserStatusFilter] = useState<'all' | UserStatus>('all');
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [editRole, setEditRole] = useState<AppRole>('manager');
   const [editFullName, setEditFullName] = useState('');
@@ -469,6 +475,26 @@ export default function Admin() {
     }
   }
 
+  async function handleResendInvite(userId: string) {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-search-user`, { method: 'POST', headers, body: JSON.stringify({ action: 'resend_invite', userId }) });
+      const result = await response.json();
+      if (!response.ok) { toast.error(result.error || 'Failed to resend invite'); return; }
+      toast.success('Invitation resent successfully');
+    } catch (error) { console.error('Resend invite error:', error); toast.error('Failed to resend invitation'); }
+  }
+
+  async function handleResetPassword(userId: string) {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-search-user`, { method: 'POST', headers, body: JSON.stringify({ action: 'reset_password', userId }) });
+      const result = await response.json();
+      if (!response.ok) { toast.error(result.error || 'Failed to send password reset'); return; }
+      toast.success('Password reset email sent');
+    } catch (error) { console.error('Reset password error:', error); toast.error('Failed to send password reset'); }
+  }
+
   async function handleSaveRiad(riad: Partial<Riad>) {
     setIsSavingRiad(true);
     try {
@@ -550,12 +576,10 @@ export default function Admin() {
     // Role filter
     const matchesRole = userRoleFilter === 'all' || u.role === userRoleFilter;
     
-    // Active filter
-    const matchesActive = userActiveFilter === 'all' || 
-      (userActiveFilter === 'active' && u.isActive) ||
-      (userActiveFilter === 'inactive' && !u.isActive);
+    // Status filter
+    const matchesStatus = userStatusFilter === 'all' || u.status === userStatusFilter;
     
-    return matchesSearch && matchesRole && matchesActive;
+    return matchesSearch && matchesRole && matchesStatus;
   });
 
   if (authLoading) {
@@ -705,14 +729,15 @@ export default function Admin() {
                       <SelectItem value="super_admin">Super Admin</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select value={userActiveFilter} onValueChange={(v) => setUserActiveFilter(v as 'all' | 'active' | 'inactive')}>
+                  <Select value={userStatusFilter} onValueChange={(v) => setUserStatusFilter(v as 'all' | UserStatus)}>
                     <SelectTrigger className="w-[130px]">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="invited">Invited</SelectItem>
                       <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="disabled">Disabled</SelectItem>
                     </SelectContent>
                   </Select>
                   <Button variant="outline" size="icon" onClick={fetchUsers}>
@@ -758,20 +783,28 @@ export default function Admin() {
                                 </Badge>
                               )}
                             </div>
+                            {userData.lastSignInAt && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                <Clock className="h-3 w-3" />
+                                Last login: {new Date(userData.lastSignInAt).toLocaleDateString()}
+                              </p>
+                            )}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleSelectUser(userData)}
-                            >
+                          <div className="flex flex-wrap items-center gap-1">
+                            {userData.status === 'invited' && (
+                              <Button variant="outline" size="sm" onClick={() => handleResendInvite(userData.id)} title="Resend Invitation">
+                                <RefreshCw className="h-3 w-3 mr-1" />Resend
+                              </Button>
+                            )}
+                            {userData.status === 'active' && (
+                              <Button variant="outline" size="sm" onClick={() => handleResetPassword(userData.id)} title="Send Password Reset">
+                                <KeyRound className="h-3 w-3 mr-1" />Reset
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" onClick={() => handleSelectUser(userData)}>
                               <UserCog className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeactivateUser(userData.id, userData.isActive)}
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => handleDeactivateUser(userData.id, userData.isActive)}>
                               {userData.isActive ? 'Deactivate' : 'Activate'}
                             </Button>
                           </div>

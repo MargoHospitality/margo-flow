@@ -40,9 +40,11 @@ Deno.serve(async (req) => {
       });
       
       if (inviteError) {
+        console.error('Bootstrap invite error:', inviteError);
         return new Response(JSON.stringify({ error: inviteError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       
+      console.log('Bootstrap user invited successfully:', BOOTSTRAP_EMAIL);
       return new Response(JSON.stringify({ success: true, message: 'Invitation sent to ' + BOOTSTRAP_EMAIL }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
@@ -81,20 +83,119 @@ Deno.serve(async (req) => {
     // Invite user
     if (action === 'invite') {
       if (!email || !role) return new Response(JSON.stringify({ error: 'Email and role required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      
       const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
       if (users.find(u => u.email?.toLowerCase() === email.toLowerCase())) {
         return new Response(JSON.stringify({ error: 'User already exists' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, { redirectTo: `${req.headers.get('origin') || supabaseUrl}/auth` });
-      if (inviteError) return new Response(JSON.stringify({ error: inviteError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      
+      console.log('Inviting user:', email);
+      
+      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, { 
+        redirectTo: `${req.headers.get('origin') || supabaseUrl}/auth` 
+      });
+      
+      if (inviteError) {
+        console.error('Invite error:', inviteError);
+        return new Response(JSON.stringify({ error: inviteError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      console.log('User invited successfully:', email, 'ID:', inviteData.user.id);
+      
       const newUserId = inviteData.user.id;
-      await supabaseAdmin.from('profiles').upsert({ user_id: newUserId, full_name: fullName || null, is_active: true }, { onConflict: 'user_id' });
-      await supabaseAdmin.from('user_roles').upsert({ user_id: newUserId, role }, { onConflict: 'user_id' });
+      
+      // Create profile
+      const { error: profileError } = await supabaseAdmin.from('profiles').upsert({ 
+        user_id: newUserId, 
+        full_name: fullName || null, 
+        is_active: true 
+      }, { onConflict: 'user_id' });
+      
+      if (profileError) console.error('Profile upsert error:', profileError);
+      
+      // Create role
+      const { error: roleError } = await supabaseAdmin.from('user_roles').upsert({ 
+        user_id: newUserId, 
+        role 
+      }, { onConflict: 'user_id' });
+      
+      if (roleError) console.error('Role upsert error:', roleError);
+      
+      // Assign riads
       if (riadIds?.length > 0) {
         await supabaseAdmin.from('user_riads').delete().eq('user_id', newUserId);
-        await supabaseAdmin.from('user_riads').insert(riadIds.map((riadId: string) => ({ user_id: newUserId, riad_id: riadId })));
+        const { error: riadsError } = await supabaseAdmin.from('user_riads').insert(
+          riadIds.map((riadId: string) => ({ user_id: newUserId, riad_id: riadId }))
+        );
+        if (riadsError) console.error('Riads insert error:', riadsError);
       }
+      
+      console.log('User setup complete:', email);
       return new Response(JSON.stringify({ success: true, userId: newUserId }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Resend invitation
+    if (action === 'resend_invite') {
+      if (!userId) return new Response(JSON.stringify({ error: 'User ID required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      
+      // Get the user
+      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+      const targetUser = users.find(u => u.id === userId);
+      
+      if (!targetUser) {
+        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      if (targetUser.email_confirmed_at) {
+        return new Response(JSON.stringify({ error: 'User has already confirmed their email. Use password reset instead.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      console.log('Resending invite to:', targetUser.email);
+      
+      // Re-invite the user
+      const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(targetUser.email!, {
+        redirectTo: `${req.headers.get('origin') || supabaseUrl}/auth`
+      });
+      
+      if (inviteError) {
+        console.error('Resend invite error:', inviteError);
+        return new Response(JSON.stringify({ error: inviteError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      console.log('Invitation resent successfully to:', targetUser.email);
+      return new Response(JSON.stringify({ success: true, message: 'Invitation resent' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Password reset
+    if (action === 'reset_password') {
+      if (!userId) return new Response(JSON.stringify({ error: 'User ID required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      
+      // Get the user
+      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+      const targetUser = users.find(u => u.id === userId);
+      
+      if (!targetUser || !targetUser.email) {
+        return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      console.log('Sending password reset to:', targetUser.email);
+      
+      // Generate password reset link
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
+        email: targetUser.email,
+        options: {
+          redirectTo: `${req.headers.get('origin') || supabaseUrl}/auth`
+        }
+      });
+      
+      if (linkError) {
+        console.error('Password reset error:', linkError);
+        return new Response(JSON.stringify({ error: linkError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      console.log('Password reset email sent to:', targetUser.email);
+      return new Response(JSON.stringify({ success: true, message: 'Password reset email sent' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Update user
@@ -116,17 +217,50 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // List all users
+    // List all users - now includes status and last login
     if (action === 'list') {
       const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
       const { data: profiles } = await supabaseAdmin.from('profiles').select('*');
       const { data: roles } = await supabaseAdmin.from('user_roles').select('*');
       const { data: userRiads } = await supabaseAdmin.from('user_riads').select('user_id, riad_id');
+      
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
       const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
       const riadMap = new Map<string, string[]>();
-      userRiads?.forEach(ur => { if (!riadMap.has(ur.user_id)) riadMap.set(ur.user_id, []); riadMap.get(ur.user_id)!.push(ur.riad_id); });
-      const userList = users.map(u => ({ id: u.id, email: u.email, fullName: profileMap.get(u.id)?.full_name || null, isActive: profileMap.get(u.id)?.is_active ?? true, role: roleMap.get(u.id) || 'manager', riadIds: riadMap.get(u.id) || [], createdAt: u.created_at }));
+      userRiads?.forEach(ur => { 
+        if (!riadMap.has(ur.user_id)) riadMap.set(ur.user_id, []); 
+        riadMap.get(ur.user_id)!.push(ur.riad_id); 
+      });
+      
+      const userList = users.map(u => {
+        const profile = profileMap.get(u.id);
+        const isActive = profile?.is_active ?? true;
+        const emailConfirmed = !!u.email_confirmed_at;
+        
+        // Determine user status
+        let status: 'invited' | 'active' | 'disabled';
+        if (!isActive) {
+          status = 'disabled';
+        } else if (!emailConfirmed) {
+          status = 'invited';
+        } else {
+          status = 'active';
+        }
+        
+        return {
+          id: u.id,
+          email: u.email,
+          fullName: profile?.full_name || null,
+          isActive,
+          role: roleMap.get(u.id) || 'manager',
+          riadIds: riadMap.get(u.id) || [],
+          createdAt: u.created_at,
+          emailConfirmedAt: u.email_confirmed_at,
+          lastSignInAt: u.last_sign_in_at,
+          status
+        };
+      });
+      
       return new Response(JSON.stringify({ users: userList }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
