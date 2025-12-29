@@ -51,6 +51,7 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [turnstileReady, setTurnstileReady] = useState(false);
+  const [turnstileLoadError, setTurnstileLoadError] = useState(false);
   const turnstileRef = useRef<HTMLDivElement>(null);
   const turnstileWidgetId = useRef<string | null>(null);
   
@@ -62,65 +63,86 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
 
   // Load Turnstile script
   useEffect(() => {
-    if (captchaRequired && typeof window !== 'undefined') {
-      // Check if already loaded
-      if ((window as any).turnstile) {
-        setTurnstileReady(true);
-        return;
-      }
+    if (!captchaRequired || typeof window === 'undefined') return;
 
-      const existingScript = document.querySelector('script[src*="turnstile"]');
-      if (!existingScript) {
-        const script = document.createElement('script');
-        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad';
-        script.async = true;
-        
-        // Set up global callback for when Turnstile is ready
-        (window as any).onTurnstileLoad = () => {
-          setTurnstileReady(true);
-        };
-        
-        document.head.appendChild(script);
-      } else {
-        // Script exists, check if Turnstile is ready
-        const checkReady = setInterval(() => {
-          if ((window as any).turnstile) {
-            setTurnstileReady(true);
-            clearInterval(checkReady);
-          }
-        }, 100);
-        
-        // Cleanup after 10 seconds
-        setTimeout(() => clearInterval(checkReady), 10000);
-      }
+    setTurnstileLoadError(false);
+
+    // If already loaded
+    if ((window as any).turnstile) {
+      setTurnstileReady(true);
+      return;
     }
+
+    const SCRIPT_ID = 'cf-turnstile-script';
+    const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+
+    const onLoaded = () => {
+      if ((window as any).turnstile) setTurnstileReady(true);
+    };
+
+    const onError = () => {
+      setTurnstileLoadError(true);
+      setTurnstileReady(false);
+    };
+
+    if (existing) {
+      // Script exists but maybe not loaded yet
+      existing.addEventListener('load', onLoaded, { once: true });
+      existing.addEventListener('error', onError, { once: true });
+
+      // Also poll briefly as a fallback
+      const iv = window.setInterval(() => {
+        if ((window as any).turnstile) {
+          setTurnstileReady(true);
+          window.clearInterval(iv);
+        }
+      }, 150);
+      window.setTimeout(() => window.clearInterval(iv), 6000);
+
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = SCRIPT_ID;
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async = true;
+    script.addEventListener('load', onLoaded, { once: true });
+    script.addEventListener('error', onError, { once: true });
+    document.head.appendChild(script);
   }, [captchaRequired]);
 
   // Render Turnstile widget when script is ready
   useEffect(() => {
-    if (captchaRequired && turnstileReady && turnstileRef.current && (window as any).turnstile) {
-      // Clear existing widget
-      if (turnstileWidgetId.current) {
-        try {
-          (window as any).turnstile.remove(turnstileWidgetId.current);
-        } catch (e) {}
-      }
-      
-      turnstileWidgetId.current = (window as any).turnstile.render(turnstileRef.current, {
-        sitekey: TURNSTILE_SITE_KEY,
-        callback: (token: string) => {
-          setCaptchaToken(token);
-        },
-        'expired-callback': () => {
-          setCaptchaToken(null);
-        },
-        'error-callback': () => {
-          setCaptchaToken(null);
-        },
-        theme: 'light',
-      });
+    if (!captchaRequired) return;
+    if (turnstileLoadError) return;
+    if (!turnstileReady) return;
+    if (!turnstileRef.current) return;
+    if (!(window as any).turnstile) return;
+
+    // Clear existing widget
+    if (turnstileWidgetId.current) {
+      try {
+        (window as any).turnstile.remove(turnstileWidgetId.current);
+      } catch (e) {}
     }
-  }, [captchaRequired, turnstileReady]);
+
+    // Ensure container is clean
+    turnstileRef.current.innerHTML = '';
+
+    turnstileWidgetId.current = (window as any).turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback: (token: string) => {
+        setCaptchaToken(token);
+      },
+      'expired-callback': () => {
+        setCaptchaToken(null);
+      },
+      'error-callback': () => {
+        setCaptchaToken(null);
+      },
+      theme: 'light',
+    });
+  }, [captchaRequired, turnstileReady, turnstileLoadError]);
 
   useEffect(() => {
     fetchRiads();
