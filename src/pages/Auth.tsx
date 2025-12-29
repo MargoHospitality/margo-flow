@@ -44,13 +44,45 @@ export default function Auth() {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const { signIn } = useAuth();
 
-  // Check for invite/recovery tokens in URL hash
+  // Check for invite/recovery tokens in URL (query) or URL hash
   useEffect(() => {
     const handleAuthRedirect = async () => {
+      // 1) Preferred: token_hash flow (avoids URL hash, which can conflict with some hosting auth overlays)
+      const url = new URL(window.location.href);
+      const tokenHash = url.searchParams.get('token_hash');
+      const typeParam = url.searchParams.get('type');
+
+      if (tokenHash && typeParam) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: typeParam as any,
+        });
+
+        if (error) {
+          toast.error(error.message || 'Authentication link is invalid or has expired');
+          setIsCheckingSession(false);
+          return;
+        }
+
+        // Clean URL (remove query params)
+        window.history.replaceState(null, '', window.location.pathname);
+
+        if (typeParam === 'invite' || typeParam === 'signup') {
+          setMode('set-password');
+          toast.info('Please set your password to complete your account setup.');
+        } else if (typeParam === 'recovery') {
+          setMode('reset-password');
+          toast.info('Please enter your new password.');
+        }
+
+        setIsCheckingSession(false);
+        return;
+      }
+
+      // 2) Legacy: access_token/refresh_token in hash
       const hash = window.location.hash;
-      
+
       if (hash) {
-        // Parse the hash parameters
         const params = new URLSearchParams(hash.substring(1));
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token');
@@ -59,30 +91,25 @@ export default function Auth() {
         const errorDescription = params.get('error_description');
 
         if (error) {
-          console.error('Auth error from URL:', error, errorDescription);
           toast.error(errorDescription || 'Authentication error');
           setIsCheckingSession(false);
           return;
         }
 
         if (accessToken && refreshToken) {
-          // Set the session from the tokens
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           });
 
           if (sessionError) {
-            console.error('Session error:', sessionError);
             toast.error('Failed to authenticate. Please try again.');
             setIsCheckingSession(false);
             return;
           }
 
-          // Clear the hash from URL
           window.history.replaceState(null, '', window.location.pathname);
 
-          // Determine mode based on type
           if (type === 'invite' || type === 'signup') {
             setMode('set-password');
             toast.info('Please set your password to complete your account setup.');
