@@ -310,6 +310,7 @@ Deno.serve(async (req) => {
       }
       
       console.log('Inviting user:', email);
+      console.log('Invite redirectTo:', `${appOrigin}/auth`);
       
       // Generate invite link (doesn't send email)
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -324,11 +325,14 @@ Deno.serve(async (req) => {
         console.error('Invite error:', linkError);
         return new Response(JSON.stringify({ error: linkError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
+
+      const actionLink = linkData?.properties?.action_link;
+      console.log('Invite action_link:', actionLink);
       
       const newUserId = linkData.user.id;
       
       // Send branded email via Resend
-      const emailResult = await sendBrandedEmail(resend, email, 'invite', linkData.properties.action_link);
+      const emailResult = await sendBrandedEmail(resend, email, 'invite', actionLink);
       
       if (!emailResult.success) {
         console.error('Failed to send invite email:', emailResult.error);
@@ -368,7 +372,8 @@ Deno.serve(async (req) => {
         success: true, 
         userId: newUserId,
         emailSent: emailResult.success,
-        emailError: emailResult.error 
+        emailError: emailResult.error,
+        actionLink,
       }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -428,6 +433,7 @@ Deno.serve(async (req) => {
       }
       
       console.log('Sending password reset to:', targetUser.email);
+      console.log('Password reset redirectTo:', `${appOrigin}/auth`);
       
       // Generate password reset link
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -442,16 +448,19 @@ Deno.serve(async (req) => {
         console.error('Password reset link error:', linkError);
         return new Response(JSON.stringify({ error: linkError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
+
+      const actionLink = linkData?.properties?.action_link;
+      console.log('Password reset action_link:', actionLink);
       
       // Send branded email via Resend
-      const emailResult = await sendBrandedEmail(resend, targetUser.email, 'recovery', linkData.properties.action_link);
+      const emailResult = await sendBrandedEmail(resend, targetUser.email, 'recovery', actionLink);
       
       if (!emailResult.success) {
         return new Response(JSON.stringify({ error: `Failed to send password reset email: ${emailResult.error}` }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       
       console.log('Password reset email sent to:', targetUser.email);
-      return new Response(JSON.stringify({ success: true, message: 'Password reset email sent' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: true, message: 'Password reset email sent', actionLink }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Update user
