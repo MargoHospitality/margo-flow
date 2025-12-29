@@ -212,8 +212,19 @@ Deno.serve(async (req) => {
     
     const body = await req.json();
     const { action } = body;
-    
-    const origin = req.headers.get('origin') || 'https://flow.margo-hospitality.com';
+
+    // Prefer an explicit app origin from the client, then fall back to request origin, then production.
+    const DEFAULT_APP_ORIGIN = Deno.env.get('APP_ORIGIN') || 'https://flow.margo-hospitality.com';
+    const candidateOrigin = body?.appOrigin || req.headers.get('origin') || DEFAULT_APP_ORIGIN;
+
+    let appOrigin = DEFAULT_APP_ORIGIN;
+    try {
+      appOrigin = new URL(candidateOrigin).origin;
+    } catch {
+      // ignore
+    }
+
+    console.log(`admin-search-user action=${action} appOrigin=${appOrigin}`);
     
     // Bootstrap first super_admin - NO AUTH REQUIRED (only works once)
     if (action === 'bootstrap') {
@@ -237,7 +248,7 @@ Deno.serve(async (req) => {
         type: 'invite',
         email: BOOTSTRAP_EMAIL,
         options: {
-          redirectTo: `${origin}/auth`
+          redirectTo: `${appOrigin}/auth`
         }
       });
       
@@ -305,7 +316,7 @@ Deno.serve(async (req) => {
         type: 'invite',
         email: email,
         options: {
-          redirectTo: `${origin}/auth`
+          redirectTo: `${appOrigin}/auth`
         }
       });
       
@@ -384,7 +395,7 @@ Deno.serve(async (req) => {
         type: 'invite',
         email: targetUser.email,
         options: {
-          redirectTo: `${origin}/auth`
+          redirectTo: `${appOrigin}/auth`
         }
       });
       
@@ -423,7 +434,7 @@ Deno.serve(async (req) => {
         type: 'recovery',
         email: targetUser.email,
         options: {
-          redirectTo: `${origin}/auth`
+          redirectTo: `${appOrigin}/auth`
         }
       });
       

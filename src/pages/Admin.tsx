@@ -374,6 +374,7 @@ export default function Admin() {
           headers,
           body: JSON.stringify({
             action: 'invite',
+            appOrigin: window.location.origin,
             email: inviteEmail.trim().toLowerCase(),
             fullName: inviteFullName.trim() || null,
             role: inviteRole,
@@ -478,7 +479,7 @@ export default function Admin() {
   async function handleResendInvite(userId: string) {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-search-user`, { method: 'POST', headers, body: JSON.stringify({ action: 'resend_invite', userId }) });
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-search-user`, { method: 'POST', headers, body: JSON.stringify({ action: 'resend_invite', appOrigin: window.location.origin, userId }) });
       const result = await response.json();
       if (!response.ok) { toast.error(result.error || 'Failed to resend invite'); return; }
       toast.success('Invitation resent successfully');
@@ -488,7 +489,7 @@ export default function Admin() {
   async function handleResetPassword(userId: string) {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-search-user`, { method: 'POST', headers, body: JSON.stringify({ action: 'reset_password', userId }) });
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-search-user`, { method: 'POST', headers, body: JSON.stringify({ action: 'reset_password', appOrigin: window.location.origin, userId }) });
       const result = await response.json();
       if (!response.ok) { toast.error(result.error || 'Failed to send password reset'); return; }
       toast.success('Password reset email sent');
