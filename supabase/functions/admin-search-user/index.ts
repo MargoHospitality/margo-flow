@@ -257,9 +257,15 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: linkError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       
+      const tokenHash = linkData?.properties?.hashed_token;
+      const verificationType = linkData?.properties?.verification_type;
+      const appLink = tokenHash && verificationType
+        ? `${appOrigin}/auth?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(verificationType)}`
+        : linkData?.properties?.action_link;
+
       // Send branded email via Resend
-      const emailResult = await sendBrandedEmail(resend, BOOTSTRAP_EMAIL, 'invite', linkData.properties.action_link);
-      
+      const emailResult = await sendBrandedEmail(resend, BOOTSTRAP_EMAIL, 'invite', appLink);
+
       if (!emailResult.success) {
         return new Response(JSON.stringify({ error: `Failed to send invitation email: ${emailResult.error}` }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
@@ -326,14 +332,19 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: linkError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      const actionLink = linkData?.properties?.action_link;
-      console.log('Invite action_link:', actionLink);
+      const tokenHash = linkData?.properties?.hashed_token;
+      const verificationType = linkData?.properties?.verification_type;
+      const appLink = tokenHash && verificationType
+        ? `${appOrigin}/auth?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(verificationType)}`
+        : linkData?.properties?.action_link;
+
+      console.log('Invite appLink:', appLink);
       
       const newUserId = linkData.user.id;
       
       // Send branded email via Resend
-      const emailResult = await sendBrandedEmail(resend, email, 'invite', actionLink);
-      
+      const emailResult = await sendBrandedEmail(resend, email, 'invite', appLink);
+
       if (!emailResult.success) {
         console.error('Failed to send invite email:', emailResult.error);
         // Continue with user setup even if email fails - admin can resend
@@ -373,7 +384,7 @@ Deno.serve(async (req) => {
         userId: newUserId,
         emailSent: emailResult.success,
         emailError: emailResult.error,
-        actionLink,
+        appLink,
       }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -409,9 +420,15 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: linkError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       
-      // Send branded email via Resend
-      const emailResult = await sendBrandedEmail(resend, targetUser.email, 'invite', linkData.properties.action_link);
+      const tokenHash = linkData?.properties?.hashed_token;
+      const verificationType = linkData?.properties?.verification_type;
+      const appLink = tokenHash && verificationType
+        ? `${appOrigin}/auth?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(verificationType)}`
+        : linkData?.properties?.action_link;
       
+      // Send branded email via Resend
+      const emailResult = await sendBrandedEmail(resend, targetUser.email, 'invite', appLink);
+
       if (!emailResult.success) {
         return new Response(JSON.stringify({ error: `Failed to send invitation email: ${emailResult.error}` }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
@@ -449,18 +466,23 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: linkError.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      const actionLink = linkData?.properties?.action_link;
-      console.log('Password reset action_link:', actionLink);
+      const tokenHash = linkData?.properties?.hashed_token;
+      const verificationType = linkData?.properties?.verification_type;
+      const appLink = tokenHash && verificationType
+        ? `${appOrigin}/auth?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(verificationType)}`
+        : linkData?.properties?.action_link;
+
+      console.log('Password reset appLink:', appLink);
       
       // Send branded email via Resend
-      const emailResult = await sendBrandedEmail(resend, targetUser.email, 'recovery', actionLink);
-      
+      const emailResult = await sendBrandedEmail(resend, targetUser.email, 'recovery', appLink);
+
       if (!emailResult.success) {
         return new Response(JSON.stringify({ error: `Failed to send password reset email: ${emailResult.error}` }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       
       console.log('Password reset email sent to:', targetUser.email);
-      return new Response(JSON.stringify({ success: true, message: 'Password reset email sent', actionLink }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: true, message: 'Password reset email sent', appLink }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Update user
