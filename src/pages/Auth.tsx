@@ -11,15 +11,20 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import margoflowLogo from '@/assets/margoflow-logo.png';
+import { PasswordRequirements, validatePassword } from '@/components/auth/PasswordRequirements';
 
 const authSchema = z.object({
   email: z.string().trim().email('Please enter a valid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 const passwordSchema = z.object({
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Password must contain at least 1 uppercase letter')
+    .regex(/[0-9]/, 'Password must contain at least 1 number')
+    .regex(/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\/'`;~]/, 'Password must contain at least 1 special character'),
+  confirmPassword: z.string().min(1, 'Please confirm your password'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -242,9 +247,9 @@ export default function Auth() {
                       placeholder="••••••••"
                       className="h-12"
                       required
-                      minLength={6}
                       autoFocus
                     />
+                    <PasswordRequirements password={password} />
                   </div>
 
                   <div className="space-y-2">
@@ -257,8 +262,10 @@ export default function Auth() {
                       placeholder="••••••••"
                       className="h-12"
                       required
-                      minLength={6}
                     />
+                    {confirmPassword && password !== confirmPassword && (
+                      <p className="text-sm text-destructive">Passwords don't match</p>
+                    )}
                   </div>
 
                   <Button
