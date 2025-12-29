@@ -213,16 +213,10 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    // Prefer an explicit app origin from the client, then fall back to request origin, then production.
-    const DEFAULT_APP_ORIGIN = Deno.env.get('APP_ORIGIN') || 'https://flow.margo-hospitality.com';
-    const candidateOrigin = body?.appOrigin || req.headers.get('origin') || DEFAULT_APP_ORIGIN;
-
-    let appOrigin = DEFAULT_APP_ORIGIN;
-    try {
-      appOrigin = new URL(candidateOrigin).origin;
-    } catch {
-      // ignore
-    }
+    // Always use production domain for email links (invite/reset)
+    // This ensures links work without Lovable auth-bridge redirect
+    const PRODUCTION_APP_ORIGIN = 'https://flow.margo-hospitality.com';
+    const appOrigin = PRODUCTION_APP_ORIGIN;
 
     console.log(`admin-search-user action=${action} appOrigin=${appOrigin}`);
     
