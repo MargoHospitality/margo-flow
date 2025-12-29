@@ -492,6 +492,7 @@ export default function Admin() {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-search-user`, { method: 'POST', headers, body: JSON.stringify({ action: 'reset_password', appOrigin: window.location.origin, userId }) });
       const result = await response.json();
       if (!response.ok) { toast.error(result.error || 'Failed to send password reset'); return; }
+      console.log('Password reset actionLink:', result.actionLink);
       toast.success('Password reset email sent');
     } catch (error) { console.error('Reset password error:', error); toast.error('Failed to send password reset'); }
   }
