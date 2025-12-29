@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -11,7 +12,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import margoflowLogo from '@/assets/margoflow-logo.png';
-import { PasswordRequirements, validatePassword } from '@/components/auth/PasswordRequirements';
+import { PasswordRequirements } from '@/components/auth/PasswordRequirements';
 
 const authSchema = z.object({
   email: z.string().trim().email('Please enter a valid email'),
@@ -41,6 +42,7 @@ export default function Auth() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mode, setMode] = useState<AuthMode>('login');
+  const [authLinkError, setAuthLinkError] = useState<string | null>(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const { signIn } = useAuth();
 
@@ -59,10 +61,15 @@ export default function Auth() {
         });
 
         if (error) {
-          toast.error(error.message || 'Authentication link is invalid or has expired');
+          console.error('verifyOtp error:', error);
+          const msg = error.message || 'Authentication link is invalid or has expired';
+          setAuthLinkError(msg);
+          toast.error(msg);
           setIsCheckingSession(false);
           return;
         }
+
+        setAuthLinkError(null);
 
         // Clean URL (remove query params)
         window.history.replaceState(null, '', window.location.pathname);
@@ -262,6 +269,14 @@ export default function Auth() {
               )}
             </CardHeader>
             <CardContent>
+              {authLinkError && !isPasswordMode && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertDescription>
+                    {authLinkError}
+                    <span className="block mt-1">Please request a new password reset link.</span>
+                  </AlertDescription>
+                </Alert>
+              )}
               {isPasswordMode ? (
                 <form onSubmit={handleSetPassword} className="space-y-4">
                   <div className="space-y-2">
