@@ -619,6 +619,22 @@ export type Database = {
         Returns: boolean
       }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
+      lookup_reservation_public: {
+        Args: {
+          _check_in_date: string
+          _reservation_id: string
+          _riad_id: string
+        }
+        Returns: {
+          check_in_date: string
+          guest_first_name: string
+          guest_last_name: string
+          reservation_id: string
+          riad_id: string
+          riad_name: string
+          status: Database["public"]["Enums"]["reservation_status"]
+        }[]
+      }
       validate_reservation_exists: {
         Args: { _property_id?: string; _reservation_id: string }
         Returns: {
