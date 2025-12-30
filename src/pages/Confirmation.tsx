@@ -122,9 +122,9 @@ export default function Confirmation() {
   );
 
   return (
-    <div className="min-h-screen bg-muted py-8 px-4">
+    <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-lg mx-auto">
-        {/* Header */}
+        {/* Header - transparent background, consistent with other Margo Flow pages */}
         <div className="text-center mb-6">
           <img src={margoflowLogo} alt="Margo Flow" className="h-10 mx-auto mb-6" />
         </div>
