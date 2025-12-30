@@ -253,38 +253,25 @@ export function ReservationEntry({ onReservationFound, preselectedRiadId }: Rese
       const reservationIdStr = reservationId.trim();
       const checkInDateStr = format(checkInDate, 'yyyy-MM-dd');
 
-      // First check local database
-      const { data, error } = await supabase
-        .from('reservations')
-        .select(`
-          reservation_id,
-          guest_first_name,
-          guest_last_name,
-          check_in_date,
-          status,
-          riad_id,
-          riads!inner(name)
-        `)
-        .eq('reservation_id', reservationIdStr)
-        .eq('riad_id', selectedRiad.id)
-        .maybeSingle();
+      // Use secure RPC function to lookup reservation (no direct table access)
+      const { data: rpcResult, error } = await supabase.rpc('lookup_reservation_public', {
+        _reservation_id: reservationIdStr,
+        _riad_id: selectedRiad.id,
+        _check_in_date: checkInDateStr,
+      });
 
       if (error) throw error;
 
-      let resolved = data;
-
-      // Validate check-in date if found locally
-      if (resolved) {
-        if (resolved.check_in_date !== checkInDateStr) {
-          // Date mismatch - generic error to avoid info leakage
-          setFailedAttempts(prev => prev + 1);
-          if (failedAttempts + 1 >= 3) {
-            setCaptchaRequired(true);
-          }
-          toast.error(t('reservation_not_found'));
-          return;
-        }
-      }
+      // RPC returns array, get first result
+      let resolved = rpcResult && rpcResult.length > 0 ? {
+        reservation_id: rpcResult[0].reservation_id,
+        guest_first_name: rpcResult[0].guest_first_name,
+        guest_last_name: rpcResult[0].guest_last_name,
+        check_in_date: rpcResult[0].check_in_date,
+        status: rpcResult[0].status,
+        riad_id: rpcResult[0].riad_id,
+        riads: { name: rpcResult[0].riad_name },
+      } : null;
 
       // If not found locally, try Cloudbeds on-demand lookup
       if (!resolved) {
