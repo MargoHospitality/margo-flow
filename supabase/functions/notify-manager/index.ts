@@ -286,9 +286,9 @@ const handler = async (req: Request): Promise<Response> => {
           },
           body: JSON.stringify({
             to: managerPhone,
-            templateKey: "manager_last_minute_en",
+            templateKey: "manager_urgent_en",
             variables: {
-              guestName: data.guestName,
+              guestName: data.guestName, // Not used by this template, but kept for interface consistency
               propertyName: data.propertyName,
               arrivalDateTime,
               link: backofficeLink,

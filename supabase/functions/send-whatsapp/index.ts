@@ -11,18 +11,23 @@ const corsHeaders = {
 };
 
 // WhatsApp template configurations
+// Client templates: 4 variables (guestName, propertyName, arrivalDateTime, link)
+// Manager urgent template: 3 variables (propertyName, arrivalDateTime, link)
 const TEMPLATES = {
   client_confirm_en: {
     sid: "HX7c07f18609900220c4f1fec5328621ba",
     name: "margoflow_client_confirm_en",
+    variableCount: 4,
   },
   client_confirm_fr: {
     sid: "HXa8112bc4988b12b4f2f521503035ae27",
     name: "margoflow_client_confirm_fr",
+    variableCount: 4,
   },
-  manager_last_minute_en: {
-    sid: "HX00bb44efb2a045a2aaa1bc097f2d7508",
-    name: "margoflow_manager_last_minute_en",
+  manager_urgent_en: {
+    sid: "HX7cf36067b50f59beef977219613b1c0e",
+    name: "margoflow_manager_urgent_en",
+    variableCount: 3, // propertyName, arrivalDateTime, link
   },
 };
 
@@ -43,7 +48,8 @@ interface WhatsAppRequest {
 async function sendTwilioWhatsApp(
   to: string,
   templateSid: string,
-  variables: WhatsAppRequest['variables']
+  variables: WhatsAppRequest['variables'],
+  variableCount: number = 4
 ): Promise<{ success: boolean; messageSid?: string; error?: string; status?: string }> {
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_FROM) {
     console.error("[send-whatsapp] Missing Twilio credentials");
@@ -58,13 +64,24 @@ async function sendTwilioWhatsApp(
     ? TWILIO_WHATSAPP_FROM 
     : `whatsapp:${TWILIO_WHATSAPP_FROM}`;
 
-  // Content variables in order: guestName, propertyName, arrivalDateTime, link
-  const contentVariables = JSON.stringify({
-    "1": variables.guestName,
-    "2": variables.propertyName,
-    "3": variables.arrivalDateTime,
-    "4": variables.link,
-  });
+  // Content variables depend on template type
+  // Client templates (4 vars): guestName, propertyName, arrivalDateTime, link
+  // Manager urgent (3 vars): propertyName, arrivalDateTime, link
+  let contentVariables: string;
+  if (variableCount === 3) {
+    contentVariables = JSON.stringify({
+      "1": variables.propertyName,
+      "2": variables.arrivalDateTime,
+      "3": variables.link,
+    });
+  } else {
+    contentVariables = JSON.stringify({
+      "1": variables.guestName,
+      "2": variables.propertyName,
+      "3": variables.arrivalDateTime,
+      "4": variables.link,
+    });
+  }
 
   const formData = new URLSearchParams();
   formData.append("To", whatsappTo);
@@ -181,7 +198,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Send WhatsApp message
-    const result = await sendTwilioWhatsApp(data.to, template.sid, data.variables);
+    const result = await sendTwilioWhatsApp(data.to, template.sid, data.variables, template.variableCount);
 
     // Log the attempt
     await logNotificationAttempt(supabase, {
