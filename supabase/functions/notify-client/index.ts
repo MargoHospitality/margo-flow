@@ -320,6 +320,23 @@ const handler = async (req: Request): Promise<Response> => {
     let whatsappSuccess = false;
     let emailSuccess = false;
 
+    // Fetch the public_token for this transport request
+    let publicToken: string | null = null;
+    if (data.transportRequestId) {
+      const { data: trData, error: trError } = await supabase
+        .from("transport_requests")
+        .select("public_token")
+        .eq("id", data.transportRequestId)
+        .single();
+      
+      if (trError) {
+        console.error("[notify-client] Error fetching public_token:", trError);
+      } else {
+        publicToken = trData?.public_token;
+        console.log("[notify-client] Fetched public_token:", publicToken);
+      }
+    }
+
     // Check if WhatsApp is enabled for this property
     const { data: riad } = await supabase
       .from("riads")
@@ -338,9 +355,9 @@ const handler = async (req: Request): Promise<Response> => {
       // Format arrival date/time for WhatsApp template
       const arrivalDateTime = `${data.transportDate} at ${data.transportTime}`;
       
-      // Build public confirmation link (read-only for client)
-      const publicLink = data.confirmationToken 
-        ? `https://flow.margo-hospitality.com/confirmation/${data.confirmationToken}`
+      // Build public confirmation link (tokenized, read-only for client)
+      const publicLink = publicToken 
+        ? `https://flow.margo-hospitality.com/confirmation/${publicToken}`
         : `https://flow.margo-hospitality.com`;
 
       try {

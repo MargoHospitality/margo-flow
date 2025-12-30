@@ -408,6 +408,7 @@ export type Database = {
           pax: number
           payload_details: Json | null
           payment_mode: Database["public"]["Enums"]["payment_mode"]
+          public_token: string | null
           rejection_reason: string | null
           reservation_id: string
           riad_id: string
@@ -428,6 +429,7 @@ export type Database = {
           pax: number
           payload_details?: Json | null
           payment_mode: Database["public"]["Enums"]["payment_mode"]
+          public_token?: string | null
           rejection_reason?: string | null
           reservation_id: string
           riad_id: string
@@ -448,6 +450,7 @@ export type Database = {
           pax?: number
           payload_details?: Json | null
           payment_mode?: Database["public"]["Enums"]["payment_mode"]
+          public_token?: string | null
           rejection_reason?: string | null
           reservation_id?: string
           riad_id?: string
@@ -582,6 +585,26 @@ export type Database = {
           transport_date: string
           transport_offer_id: string
           transport_time: string
+        }[]
+      }
+      get_transport_request_by_token: {
+        Args: { _token: string }
+        Returns: {
+          computed_price: number
+          guest_comment: string
+          id: string
+          is_free_transfer: boolean
+          pax: number
+          payload_details: Json
+          payment_mode: Database["public"]["Enums"]["payment_mode"]
+          property_name: string
+          reservation_id: string
+          status: Database["public"]["Enums"]["request_status"]
+          transport_date: string
+          transport_name: string
+          transport_offer_id: string
+          transport_time: string
+          transport_type: string
         }[]
       }
       has_riad_access: {
