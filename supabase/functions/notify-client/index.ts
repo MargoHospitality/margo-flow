@@ -346,9 +346,49 @@ const handler = async (req: Request): Promise<Response> => {
 
     const whatsappEnabled = riad?.whatsapp_enabled ?? false;
 
-    // Step 1: Try WhatsApp first (if enabled and phone number provided)
+    // BELT AND SUSPENDERS: Always send email for client confirmations
+    // WhatsApp delivery cannot be reliably confirmed (Twilio returns "queued" even for non-WhatsApp numbers)
+    // Email guarantees the client receives confirmation; WhatsApp is a bonus channel
+    
+    // Step 1: Always send email first (guaranteed delivery)
+    console.log("[notify-client] Sending email confirmation (primary channel)...");
+    
+    try {
+      const emailHtml = buildConfirmationEmailHtml(data, t);
+      const emailResponse = await sendEmail([data.guestEmail], `${t.subject} (#${data.reservationId})`, emailHtml);
+      emailSuccess = true;
+
+      // Log email attempt
+      await logNotificationAttempt(supabase, {
+        transportRequestId: data.transportRequestId,
+        notificationType: "client_confirmation",
+        channel: "email",
+        recipientEmail: data.guestEmail,
+        status: "sent",
+        providerMessageId: emailResponse.id,
+        isFallback: false, // Email is now primary
+        metadata: { language: data.language },
+      });
+
+      console.log("[notify-client] Email sent successfully:", emailResponse.id);
+    } catch (emailErr: any) {
+      console.error("[notify-client] Email failed:", emailErr);
+      
+      await logNotificationAttempt(supabase, {
+        transportRequestId: data.transportRequestId,
+        notificationType: "client_confirmation",
+        channel: "email",
+        recipientEmail: data.guestEmail,
+        status: "failed",
+        errorMessage: emailErr.message,
+        isFallback: false,
+        metadata: { language: data.language },
+      });
+    }
+
+    // Step 2: Also send WhatsApp if enabled and phone number provided (bonus channel)
     if (whatsappEnabled && data.guestPhone) {
-      console.log("[notify-client] Attempting WhatsApp notification...");
+      console.log("[notify-client] Also sending WhatsApp notification (bonus channel)...");
       
       const templateKey = data.language === 'fr' ? 'client_confirm_fr' : 'client_confirm_en';
       
@@ -385,59 +425,23 @@ const handler = async (req: Request): Promise<Response> => {
         const whatsappResult = await whatsappResponse.json();
         whatsappSuccess = whatsappResult.success === true;
         
-        if (!whatsappSuccess) {
-          console.log("[notify-client] WhatsApp failed, will fallback to email:", whatsappResult.error);
+        if (whatsappSuccess) {
+          console.log("[notify-client] WhatsApp also sent successfully");
+        } else {
+          console.log("[notify-client] WhatsApp failed (client already has email):", whatsappResult.error);
         }
       } catch (err) {
-        console.error("[notify-client] WhatsApp request failed:", err);
+        console.error("[notify-client] WhatsApp request failed (client already has email):", err);
       }
     }
 
-    // Step 2: Send email (always if WhatsApp failed, or as primary if no phone)
-    if (!whatsappSuccess) {
-      console.log("[notify-client] Sending email confirmation...");
-      
-      try {
-        const emailHtml = buildConfirmationEmailHtml(data, t);
-        const emailResponse = await sendEmail([data.guestEmail], `${t.subject} (#${data.reservationId})`, emailHtml);
-        emailSuccess = true;
-
-        // Log email attempt
-        await logNotificationAttempt(supabase, {
-          transportRequestId: data.transportRequestId,
-          notificationType: "client_confirmation",
-          channel: "email",
-          recipientEmail: data.guestEmail,
-          status: "sent",
-          providerMessageId: emailResponse.id,
-          isFallback: whatsappEnabled && data.guestPhone ? true : false,
-          metadata: { language: data.language },
-        });
-
-        console.log("[notify-client] Email sent successfully:", emailResponse.id);
-      } catch (emailErr: any) {
-        console.error("[notify-client] Email failed:", emailErr);
-        
-        await logNotificationAttempt(supabase, {
-          transportRequestId: data.transportRequestId,
-          notificationType: "client_confirmation",
-          channel: "email",
-          recipientEmail: data.guestEmail,
-          status: "failed",
-          errorMessage: emailErr.message,
-          isFallback: whatsappEnabled && data.guestPhone ? true : false,
-          metadata: { language: data.language },
-        });
-      }
-    }
-
-    const success = whatsappSuccess || emailSuccess;
+    const success = emailSuccess; // Email is now the primary success indicator
 
     return new Response(
       JSON.stringify({ 
         success,
+        emailSent: emailSuccess,
         whatsappSent: whatsappSuccess,
-        emailSent: emailSuccess && !whatsappSuccess,
       }),
       { status: success ? 200 : 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
