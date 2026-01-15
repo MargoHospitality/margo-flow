@@ -28,6 +28,7 @@ const translations = {
     contactSection: 'If you need to make any changes, please contact the property:',
     footer: 'This email was sent by Margo Flow – Transfer Management System',
     copyright: '© 2025 Margo Hospitality',
+    viewDetails: 'View Transport Details',
   },
   fr: {
     subject: 'Rappel : Votre Transport Demain - Margo Flow',
@@ -48,6 +49,7 @@ const translations = {
     contactSection: 'Si vous devez effectuer des modifications, veuillez contacter la propriété :',
     footer: 'Cet email a été envoyé par Margo Flow – Système de Gestion des Transferts',
     copyright: '© 2025 Margo Hospitality',
+    viewDetails: 'Voir les Détails du Transport',
   },
 };
 
@@ -87,12 +89,18 @@ function buildReminderEmailHtml(
     isFreeTransfer?: boolean;
     managerEmail?: string;
     managerWhatsapp?: string;
+    publicToken?: string;
   },
   t: typeof translations.en
 ): string {
   const paymentModeText = data.isFreeTransfer ? t.paymentAtRiad : (data.paymentMode === 'at_riad' ? t.paymentAtRiad : t.paymentToDriver);
   const whatsappLink = data.managerWhatsapp 
     ? `https://wa.me/${data.managerWhatsapp.replace(/\D/g, '')}`
+    : null;
+  
+  // Build confirmation link if public token available
+  const confirmationLink = data.publicToken 
+    ? `https://flow.margo-hospitality.com/confirmation/${data.publicToken}`
     : null;
 
   // Build transport details rows from payloadDetails
@@ -130,23 +138,26 @@ function buildReminderEmailHtml(
           <!-- Reminder Banner -->
           <tr>
             <td style="background-color: #fef3c7; padding: 20px 40px; text-align: center; border-bottom: 1px solid #fcd34d;">
-              <span style="display: inline-block; width: 48px; height: 48px; background-color: #f59e0b; border-radius: 50%; line-height: 48px; color: white; font-size: 24px; margin-bottom: 8px;">🔔</span>
-              <h2 style="color: #92400e; margin: 8px 0 0 0; font-size: 20px; font-weight: 600;">${t.title}</h2>
-              <p style="color: #b45309; margin: 4px 0 0 0; font-size: 14px;">${t.subtitle}</p>
+              <div style="width: 48px; height: 48px; background-color: #f59e0b; border-radius: 50%; margin: 0 auto 12px auto; line-height: 48px; text-align: center;">
+                <span style="color: #ffffff; font-size: 24px;">🔔</span>
+              </div>
+              <h1 style="color: #92400e; font-size: 24px; font-weight: 600; margin: 0;">${t.title}</h1>
+              <p style="color: #b45309; font-size: 14px; margin: 8px 0 0 0;">${t.subtitle}</p>
             </td>
           </tr>
           
-          <!-- Content -->
+          <!-- Main Content -->
           <tr>
             <td style="padding: 32px 40px;">
-              <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+              <p style="color: #374151; font-size: 16px; margin: 0 0 24px 0;">
                 ${t.greeting} ${data.guestName},<br><br>
                 ${t.reminderText}
               </p>
               
-              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafb; border-radius: 12px; margin-bottom: 24px;">
+              <!-- Transport Details Card -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb;">
                 <tr>
-                  <td style="padding: 20px;">
+                  <td style="padding: 24px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
@@ -166,10 +177,11 @@ function buildReminderEmailHtml(
                           <span style="color: #111827; font-size: 15px; font-weight: 500;">${data.transportDate}</span>
                         </td>
                       </tr>
+                      <!-- Highlighted Pickup Time -->
                       <tr>
-                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; background-color: #fef3c7;">
-                          <span style="color: #92400e; font-size: 13px; font-weight: 600;">${t.time}</span><br>
-                          <span style="color: #92400e; font-size: 18px; font-weight: 700;">${data.transportTime}</span>
+                        <td style="padding: 16px; background-color: #fef3c7; border-radius: 8px; margin: 8px 0;">
+                          <span style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #92400e; margin-bottom: 4px; font-weight: 600;">${t.time}</span>
+                          <span style="display: block; font-size: 28px; font-weight: 700; color: #92400e;">${data.transportTime}</span>
                         </td>
                       </tr>
                       ${transportDetailsHtml}
@@ -177,30 +189,36 @@ function buildReminderEmailHtml(
                       <tr>
                         <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
                           <span style="color: #6b7280; font-size: 13px;">${t.paymentMethod}</span><br>
-                          <span style="color: #111827; font-size: 15px; font-weight: 600;">${paymentModeText}</span>
+                          <span style="color: #111827; font-size: 15px; font-weight: 500;">${paymentModeText}</span>
                         </td>
                       </tr>
                       <tr>
-                        <td style="padding: 8px 0;">
+                        <td style="padding: 16px 0 0 0;">
                           <span style="color: #6b7280; font-size: 13px;">${t.price}</span><br>
-                          <span style="color: #0F4C5C; font-size: 24px; font-weight: 700;">${data.price} MAD</span>
+                          <span style="color: #048e9a; font-size: 24px; font-weight: 700;">${data.price} MAD</span>
                         </td>
                       </tr>
-                      ` : `
-                      <tr>
-                        <td style="padding: 8px 0; background-color: #ecfdf5;">
-                          <span style="color: #059669; font-size: 13px;">🎁 ${t.paymentMethod}</span><br>
-                          <span style="color: #059669; font-size: 18px; font-weight: 700;">Complimentary Transfer</span>
-                        </td>
-                      </tr>
-                      `}
+                      ` : ''}
                     </table>
                   </td>
                 </tr>
               </table>
               
+              ${confirmationLink ? `
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">
+                <tr>
+                  <td align="center">
+                    <a href="${confirmationLink}" style="display: inline-block; background-color: #048e9a; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 32px; border-radius: 8px;">
+                      ${t.viewDetails}
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              ` : ''}
+              
               <!-- Important Note -->
-              <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+              <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
                 <p style="color: #991b1b; margin: 0; font-size: 14px; font-weight: 500;">${t.importantNote}</p>
               </div>
               
@@ -289,13 +307,16 @@ const handler = async (req: Request): Promise<Response> => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    console.log("[send-reminder-emails] Starting 48h reminder job...");
+    console.log("[send-reminder-emails] Starting J-1 reminder job (09:00 local time)...");
 
-    // Calculate date range: transports happening in ~48 hours (tomorrow)
+    // Calculate tomorrow's date (J-1 means transport is tomorrow)
+    // The cron runs at 09:00 Morocco time, so "tomorrow" is correct
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    console.log(`[send-reminder-emails] Looking for confirmed transports on ${tomorrowStr}`);
 
     // Get confirmed transport requests for tomorrow that haven't received a reminder
     const { data: requests, error: fetchError } = await supabase
@@ -311,6 +332,7 @@ const handler = async (req: Request): Promise<Response> => {
         guest_comment,
         payload_details,
         is_free_transfer,
+        public_token,
         riad:riads!transport_requests_riad_id_fkey (
           name,
           manager_email,
@@ -333,14 +355,15 @@ const handler = async (req: Request): Promise<Response> => {
       throw fetchError;
     }
 
-    console.log(`[send-reminder-emails] Found ${requests?.length || 0} confirmed transports for ${tomorrowStr}`);
-
     if (!requests || requests.length === 0) {
+      console.log("[send-reminder-emails] No confirmed transports for tomorrow");
       return new Response(
-        JSON.stringify({ success: true, sent: 0, message: "No reminders to send" }),
+        JSON.stringify({ success: true, sent: 0, failed: 0, message: "No transports scheduled for tomorrow" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+
+    console.log(`[send-reminder-emails] Found ${requests.length} confirmed transports for tomorrow`);
 
     // Check which requests already have a reminder sent
     const requestIds = requests.map(r => r.id);
@@ -353,6 +376,14 @@ const handler = async (req: Request): Promise<Response> => {
 
     const alreadySentIds = new Set(existingReminders?.map(r => r.transport_request_id) || []);
     const requestsToRemind = requests.filter(r => !alreadySentIds.has(r.id));
+
+    if (requestsToRemind.length === 0) {
+      console.log("[send-reminder-emails] All reminders already sent for tomorrow's transports");
+      return new Response(
+        JSON.stringify({ success: true, sent: 0, failed: 0, message: "All reminders already sent" }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     console.log(`[send-reminder-emails] ${requestsToRemind.length} reminders to send (${alreadySentIds.size} already sent)`);
 
@@ -397,9 +428,10 @@ const handler = async (req: Request): Promise<Response> => {
             payloadDetails: request.payload_details as Record<string, string>,
             paymentMode: request.payment_mode,
             price: request.computed_price,
-            isFreeTransfer: (request as any).is_free_transfer,
+            isFreeTransfer: request.is_free_transfer,
             managerEmail: riad?.manager_email,
             managerWhatsapp: riad?.manager_whatsapp,
+            publicToken: request.public_token,
           },
           t
         );
