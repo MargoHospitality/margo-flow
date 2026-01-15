@@ -76,6 +76,187 @@ async function sendEmail(to: string[], subject: string, html: string) {
   return res.json();
 }
 
+// Manager reminder email template (English only)
+function buildManagerReminderEmailHtml(data: {
+  guestName: string;
+  reservationId: string;
+  propertyName: string;
+  transportType: string;
+  transportDate: string;
+  transportTime: string;
+  payloadDetails?: Record<string, string>;
+  pax: number;
+}): string {
+  // Build transport details rows from payloadDetails
+  const transportDetailsHtml = Object.entries(data.payloadDetails || {})
+    .filter(([key, value]) => !['guest_email', 'guest_whatsapp', 'language'].includes(key) && value && String(value).trim())
+    .map(([key, value]) => `
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #E5E7EB;">
+                          <span style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7280; margin-bottom: 4px;">${key.replace(/_/g, ' ')}</span>
+                          <span style="display: block; font-size: 16px; font-weight: 600; color: #111827;">${value}</span>
+                        </td>
+                      </tr>
+    `).join('');
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Transport Reminder - Tomorrow - Margo Flow</title>
+  <style>
+    body, table, td, p, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
+    @media screen and (max-width: 600px) {
+      .email-container { width: 100% !important; margin: auto !important; }
+      .mobile-padding { padding-left: 24px !important; padding-right: 24px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #FAF9F7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  
+  <div style="display: none; font-size: 1px; color: #FAF9F7; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
+    Transport reminder: ${data.guestName} - ${data.transportType} tomorrow at ${data.transportTime}
+  </div>
+
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #FAF9F7;">
+    <tr>
+      <td align="center" style="padding: 40px 16px;">
+        
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="email-container" style="background-color: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);">
+          
+          <!-- Header with Logo -->
+          <tr>
+            <td style="background-color: #FFFFFF; padding: 32px 40px; text-align: center; border-bottom: 1px solid #E5E7EB;" class="mobile-padding">
+              <img src="https://fnbqegolwitkgjmlesbc.supabase.co/storage/v1/object/public/assets/margoflow-logo.png" alt="Margo Flow" width="180" style="display: block; margin: 0 auto; max-width: 180px; height: auto;" />
+            </td>
+          </tr>
+          
+          <!-- Reminder Banner -->
+          <tr>
+            <td style="background-color: #fef3c7; padding: 20px 40px; text-align: center; border-bottom: 1px solid #fcd34d;" class="mobile-padding">
+              <div style="width: 48px; height: 48px; background-color: #f59e0b; border-radius: 50%; margin: 0 auto 12px auto; line-height: 48px; text-align: center;">
+                <span style="color: #ffffff; font-size: 24px;">🔔</span>
+              </div>
+              <h1 style="color: #92400e; font-size: 24px; font-weight: 600; margin: 0;">Transport Reminder</h1>
+              <p style="color: #b45309; font-size: 14px; margin: 8px 0 0 0;">A confirmed transfer is scheduled for tomorrow</p>
+            </td>
+          </tr>
+          
+          <!-- Main Content -->
+          <tr>
+            <td style="padding: 32px 40px;" class="mobile-padding">
+              
+              <p style="margin: 0 0 24px 0; font-size: 16px; color: #374151;">
+                This is a reminder that the following transport is scheduled for <strong>tomorrow</strong>. Please ensure everything is ready.
+              </p>
+              
+              <!-- Details Card -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #F9FAFB; border-radius: 12px; border: 1px solid #E5E7EB;">
+                <tr>
+                  <td style="padding: 24px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                      <!-- Property -->
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #E5E7EB;">
+                          <span style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7280; margin-bottom: 4px;">Property</span>
+                          <span style="display: block; font-size: 16px; font-weight: 600; color: #111827;">${data.propertyName}</span>
+                        </td>
+                      </tr>
+                      <!-- Reservation ID -->
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #E5E7EB;">
+                          <span style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7280; margin-bottom: 4px;">Reservation ID</span>
+                          <span style="display: block; font-size: 16px; font-weight: 600; color: #111827;">#${data.reservationId}</span>
+                        </td>
+                      </tr>
+                      <!-- Guest Name -->
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #E5E7EB;">
+                          <span style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7280; margin-bottom: 4px;">Guest Name</span>
+                          <span style="display: block; font-size: 16px; font-weight: 600; color: #111827;">${data.guestName}</span>
+                        </td>
+                      </tr>
+                      <!-- Transport Type -->
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #E5E7EB;">
+                          <span style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7280; margin-bottom: 4px;">Transport Type</span>
+                          <span style="display: block; font-size: 16px; font-weight: 600; color: #111827;">${data.transportType}</span>
+                        </td>
+                      </tr>
+                      <!-- Passengers -->
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #E5E7EB;">
+                          <span style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7280; margin-bottom: 4px;">Passengers</span>
+                          <span style="display: block; font-size: 16px; font-weight: 600; color: #111827;">${data.pax}</span>
+                        </td>
+                      </tr>
+                      <!-- Date -->
+                      <tr>
+                        <td style="padding: 12px 0; border-bottom: 1px solid #E5E7EB;">
+                          <span style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7280; margin-bottom: 4px;">Date</span>
+                          <span style="display: block; font-size: 16px; font-weight: 600; color: #111827;">${data.transportDate}</span>
+                        </td>
+                      </tr>
+                      <!-- Time (highlighted) -->
+                      <tr>
+                        <td style="padding: 16px; background-color: #fef3c7; border-radius: 8px; margin: 8px 0;">
+                          <span style="display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #92400e; margin-bottom: 4px; font-weight: 600;">Pickup / Arrival Time</span>
+                          <span style="display: block; font-size: 28px; font-weight: 700; color: #92400e;">${data.transportTime}</span>
+                        </td>
+                      </tr>
+                      ${transportDetailsHtml}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- CTA Button -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 28px;">
+                <tr>
+                  <td align="center">
+                    <a href="https://flow.margo-hospitality.com/backoffice" style="display: inline-block; background: linear-gradient(135deg, #048E9A 0%, #06A3B0 100%); color: #FFFFFF; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 16px rgba(4, 142, 154, 0.3);">
+                      View in Margo Flow
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="margin: 20px 0 0 0; font-size: 13px; color: #6B7280; text-align: center;">
+                This is an informational reminder. No action is required unless changes are needed.
+              </p>
+              
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F9FAFB; padding: 24px 40px; text-align: center; border-top: 1px solid #E5E7EB;" class="mobile-padding">
+              <p style="margin: 0 0 8px 0; font-size: 13px; color: #6B7280;">
+                Sent by <strong style="color: #048E9A;">Margo Flow</strong> — Transfer Management System
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #9CA3AF;">
+                © 2025 Margo Hospitality. All rights reserved.
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+        
+      </td>
+    </tr>
+  </table>
+  
+</body>
+</html>`;
+}
+
 function buildReminderEmailHtml(
   data: {
     guestName: string;
@@ -365,32 +546,39 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`[send-reminder-emails] Found ${requests.length} confirmed transports for tomorrow`);
 
-    // Check which requests already have a reminder sent
+    // Check which requests already have a CLIENT reminder sent
     const requestIds = requests.map(r => r.id);
-    const { data: existingReminders } = await supabase
+    const { data: existingClientReminders } = await supabase
       .from("notification_attempts")
       .select("transport_request_id")
       .in("transport_request_id", requestIds)
       .eq("notification_type", "client_reminder")
       .eq("status", "sent");
 
-    const alreadySentIds = new Set(existingReminders?.map(r => r.transport_request_id) || []);
-    const requestsToRemind = requests.filter(r => !alreadySentIds.has(r.id));
+    const clientAlreadySentIds = new Set(existingClientReminders?.map(r => r.transport_request_id) || []);
+    const clientRequestsToRemind = requests.filter(r => !clientAlreadySentIds.has(r.id));
 
-    if (requestsToRemind.length === 0) {
-      console.log("[send-reminder-emails] All reminders already sent for tomorrow's transports");
-      return new Response(
-        JSON.stringify({ success: true, sent: 0, failed: 0, message: "All reminders already sent" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
+    // Check which requests already have a MANAGER reminder sent
+    const { data: existingManagerReminders } = await supabase
+      .from("notification_attempts")
+      .select("transport_request_id")
+      .in("transport_request_id", requestIds)
+      .eq("notification_type", "manager_reminder")
+      .eq("status", "sent");
 
-    console.log(`[send-reminder-emails] ${requestsToRemind.length} reminders to send (${alreadySentIds.size} already sent)`);
+    const managerAlreadySentIds = new Set(existingManagerReminders?.map(r => r.transport_request_id) || []);
+    const managerRequestsToRemind = requests.filter(r => !managerAlreadySentIds.has(r.id));
 
-    let sent = 0;
-    let failed = 0;
+    console.log(`[send-reminder-emails] Client reminders: ${clientRequestsToRemind.length} to send (${clientAlreadySentIds.size} already sent)`);
+    console.log(`[send-reminder-emails] Manager reminders: ${managerRequestsToRemind.length} to send (${managerAlreadySentIds.size} already sent)`);
 
-    for (const request of requestsToRemind) {
+    let clientSent = 0;
+    let clientFailed = 0;
+    let managerSent = 0;
+    let managerFailed = 0;
+
+    // ============ SEND CLIENT REMINDERS ============
+    for (const request of clientRequestsToRemind) {
       // Get guest email from Cloudbeds data in reservation
       const { data: reservation } = await supabase
         .from("reservations")
@@ -451,10 +639,10 @@ const handler = async (req: Request): Promise<Response> => {
           providerMessageId: emailResponse.id,
         });
 
-        sent++;
-        console.log(`[send-reminder-emails] Sent reminder to ${guestEmail} for request ${request.id}`);
+        clientSent++;
+        console.log(`[send-reminder-emails] Sent client reminder to ${guestEmail} for request ${request.id}`);
       } catch (err: any) {
-        console.error(`[send-reminder-emails] Failed to send reminder for ${request.id}:`, err);
+        console.error(`[send-reminder-emails] Failed to send client reminder for ${request.id}:`, err);
         
         await logNotificationAttempt(supabase, {
           transportRequestId: request.id,
@@ -465,14 +653,79 @@ const handler = async (req: Request): Promise<Response> => {
           errorMessage: err.message,
         });
 
-        failed++;
+        clientFailed++;
       }
     }
 
-    console.log(`[send-reminder-emails] Complete: ${sent} sent, ${failed} failed`);
+    // ============ SEND MANAGER REMINDERS ============
+    for (const request of managerRequestsToRemind) {
+      const riad = request.riad as any;
+      const managerEmail = riad?.manager_email;
+      
+      if (!managerEmail) {
+        console.log(`[send-reminder-emails] No manager email for request ${request.id}, skipping manager reminder`);
+        continue;
+      }
+
+      const res = request.reservation as any;
+      const offer = request.offer as any;
+      
+      const guestName = `${res?.guest_first_name || ''} ${res?.guest_last_name || ''}`.trim();
+      const transportType = offer?.name || 'Transport';
+
+      try {
+        const emailHtml = buildManagerReminderEmailHtml({
+          guestName,
+          reservationId: request.reservation_id,
+          propertyName: riad?.name || 'Property',
+          transportType,
+          transportDate: request.transport_date,
+          transportTime: request.transport_time,
+          payloadDetails: request.payload_details as Record<string, string>,
+          pax: request.pax,
+        });
+
+        const emailResponse = await sendEmail(
+          [managerEmail],
+          `Transport Reminder: ${guestName} - Tomorrow at ${request.transport_time} (#${request.reservation_id})`,
+          emailHtml
+        );
+
+        await logNotificationAttempt(supabase, {
+          transportRequestId: request.id,
+          notificationType: "manager_reminder",
+          channel: "email",
+          recipientEmail: managerEmail,
+          status: "sent",
+          providerMessageId: emailResponse.id,
+        });
+
+        managerSent++;
+        console.log(`[send-reminder-emails] Sent manager reminder to ${managerEmail} for request ${request.id}`);
+      } catch (err: any) {
+        console.error(`[send-reminder-emails] Failed to send manager reminder for ${request.id}:`, err);
+        
+        await logNotificationAttempt(supabase, {
+          transportRequestId: request.id,
+          notificationType: "manager_reminder",
+          channel: "email",
+          recipientEmail: managerEmail,
+          status: "failed",
+          errorMessage: err.message,
+        });
+
+        managerFailed++;
+      }
+    }
+
+    console.log(`[send-reminder-emails] Complete: Client ${clientSent} sent / ${clientFailed} failed, Manager ${managerSent} sent / ${managerFailed} failed`);
 
     return new Response(
-      JSON.stringify({ success: true, sent, failed }),
+      JSON.stringify({ 
+        success: true, 
+        client: { sent: clientSent, failed: clientFailed },
+        manager: { sent: managerSent, failed: managerFailed }
+      }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
