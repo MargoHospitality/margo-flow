@@ -14,6 +14,7 @@ interface TransportRequest {
   id: string;
   reservation_id: string;
   riad_id: string;
+  transport_offer_id: string;
   transport_date: string;
   transport_time: string;
   pax: number;
@@ -79,6 +80,7 @@ export default function Backoffice() {
           id,
           reservation_id,
           riad_id,
+          transport_offer_id,
           transport_date,
           transport_time,
           pax,
