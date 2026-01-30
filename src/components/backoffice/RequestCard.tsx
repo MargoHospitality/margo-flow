@@ -17,6 +17,7 @@ interface TransportRequest {
   id: string;
   reservation_id: string;
   riad_id: string;
+  transport_offer_id: string;
   transport_date: string;
   transport_time: string;
   pax: number;
@@ -278,7 +279,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
   const fetchTransportOfferPricing = useCallback(async () => {
     setIsPricingLoading(true);
     try {
-      // Get the transport offer with riad-specific overrides
+      // Get riad-specific pricing overrides using the transport_offer_id from the request
       const { data: riadOffer, error: riadError } = await supabase
         .from('riad_transport_offers')
         .select(`
@@ -298,12 +299,10 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
           )
         `)
         .eq('riad_id', request.riad_id)
-        .eq('transport_offer_id', request.transport_offer.type === 'airport_pickup' ? 
-          (await supabase.from('transport_offers').select('id').eq('type', request.transport_offer.type).single()).data?.id : 
-          undefined)
+        .eq('transport_offer_id', request.transport_offer_id)
         .single();
 
-      // If riad-specific pricing not found, get default from transport_offers
+      // If riad-specific pricing not found, fall back to default from transport_offers
       if (riadError || !riadOffer) {
         const { data: defaultOffer, error: defaultError } = await supabase
           .from('transport_offers')
@@ -316,7 +315,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             day_start_time,
             day_end_time
           `)
-          .eq('name', request.transport_offer.name)
+          .eq('id', request.transport_offer_id)
           .single();
 
         if (defaultError || !defaultOffer) {
@@ -336,10 +335,10 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
       } else {
         const offer = riadOffer.transport_offers as any;
         setTransportOfferPricing({
-          day_price: riadOffer.override_day_price ?? Number(offer.default_day_price),
-          night_price: riadOffer.override_night_price ?? Number(offer.default_night_price),
+          day_price: riadOffer.override_day_price != null ? Number(riadOffer.override_day_price) : Number(offer.default_day_price),
+          night_price: riadOffer.override_night_price != null ? Number(riadOffer.override_night_price) : Number(offer.default_night_price),
           base_pax: riadOffer.override_base_pax ?? offer.default_base_pax,
-          extra_pax_price: riadOffer.override_extra_pax_price ?? Number(offer.default_extra_pax_price),
+          extra_pax_price: riadOffer.override_extra_pax_price != null ? Number(riadOffer.override_extra_pax_price) : Number(offer.default_extra_pax_price),
           payment_mode: (riadOffer.override_payment_mode ?? offer.default_payment_mode) as 'at_riad' | 'to_driver',
           day_start_time: offer.day_start_time,
           day_end_time: offer.day_end_time,
@@ -350,7 +349,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
     } finally {
       setIsPricingLoading(false);
     }
-  }, [request.riad_id, request.transport_offer.name, request.transport_offer.type]);
+  }, [request.riad_id, request.transport_offer_id]);
 
   // Calculate price when not free transfer
   const recalculatedPrice = useMemo(() => {
