@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
@@ -47,17 +48,31 @@ interface RequestCardProps {
   compact?: boolean;
 }
 
+interface TransportOfferPricing {
+  day_price: number;
+  night_price: number;
+  base_pax: number;
+  extra_pax_price: number;
+  payment_mode: 'at_riad' | 'to_driver';
+  day_start_time: string;
+  day_end_time: string;
+}
+
 export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }: RequestCardProps) {
   const { t, language } = useLanguage();
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isEditPendingDialogOpen, setIsEditPendingDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [editedTime, setEditedTime] = useState(request.transport_time);
   const [editedFlightNumber, setEditedFlightNumber] = useState(request.payload_details?.flight_number || '');
+  const [editedIsFreeTransfer, setEditedIsFreeTransfer] = useState(request.is_free_transfer || false);
+  const [transportOfferPricing, setTransportOfferPricing] = useState<TransportOfferPricing | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPricingLoading, setIsPricingLoading] = useState(false);
 
   const statusColors = {
     pending: 'bg-amber-light/20 text-amber border-amber/30',
@@ -259,6 +274,141 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
     }
   };
 
+  // Fetch transport offer pricing for pending request edit
+  const fetchTransportOfferPricing = useCallback(async () => {
+    setIsPricingLoading(true);
+    try {
+      // Get the transport offer with riad-specific overrides
+      const { data: riadOffer, error: riadError } = await supabase
+        .from('riad_transport_offers')
+        .select(`
+          override_day_price,
+          override_night_price,
+          override_base_pax,
+          override_extra_pax_price,
+          override_payment_mode,
+          transport_offers!inner(
+            default_day_price,
+            default_night_price,
+            default_base_pax,
+            default_extra_pax_price,
+            default_payment_mode,
+            day_start_time,
+            day_end_time
+          )
+        `)
+        .eq('riad_id', request.riad_id)
+        .eq('transport_offer_id', request.transport_offer.type === 'airport_pickup' ? 
+          (await supabase.from('transport_offers').select('id').eq('type', request.transport_offer.type).single()).data?.id : 
+          undefined)
+        .single();
+
+      // If riad-specific pricing not found, get default from transport_offers
+      if (riadError || !riadOffer) {
+        const { data: defaultOffer, error: defaultError } = await supabase
+          .from('transport_offers')
+          .select(`
+            default_day_price,
+            default_night_price,
+            default_base_pax,
+            default_extra_pax_price,
+            default_payment_mode,
+            day_start_time,
+            day_end_time
+          `)
+          .eq('name', request.transport_offer.name)
+          .single();
+
+        if (defaultError || !defaultOffer) {
+          console.error('Could not fetch transport offer pricing');
+          return;
+        }
+
+        setTransportOfferPricing({
+          day_price: Number(defaultOffer.default_day_price),
+          night_price: Number(defaultOffer.default_night_price),
+          base_pax: defaultOffer.default_base_pax,
+          extra_pax_price: Number(defaultOffer.default_extra_pax_price),
+          payment_mode: defaultOffer.default_payment_mode as 'at_riad' | 'to_driver',
+          day_start_time: defaultOffer.day_start_time,
+          day_end_time: defaultOffer.day_end_time,
+        });
+      } else {
+        const offer = riadOffer.transport_offers as any;
+        setTransportOfferPricing({
+          day_price: riadOffer.override_day_price ?? Number(offer.default_day_price),
+          night_price: riadOffer.override_night_price ?? Number(offer.default_night_price),
+          base_pax: riadOffer.override_base_pax ?? offer.default_base_pax,
+          extra_pax_price: riadOffer.override_extra_pax_price ?? Number(offer.default_extra_pax_price),
+          payment_mode: (riadOffer.override_payment_mode ?? offer.default_payment_mode) as 'at_riad' | 'to_driver',
+          day_start_time: offer.day_start_time,
+          day_end_time: offer.day_end_time,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching transport offer pricing:', error);
+    } finally {
+      setIsPricingLoading(false);
+    }
+  }, [request.riad_id, request.transport_offer.name, request.transport_offer.type]);
+
+  // Calculate price when not free transfer
+  const recalculatedPrice = useMemo(() => {
+    if (editedIsFreeTransfer) return 0;
+    if (!transportOfferPricing) return Number(request.computed_price);
+
+    const timeValue = request.transport_time.replace(':', '');
+    const dayStart = transportOfferPricing.day_start_time.replace(':', '');
+    const dayEnd = transportOfferPricing.day_end_time.replace(':', '');
+
+    const isNight = timeValue < dayStart || timeValue >= dayEnd;
+    const basePrice = isNight ? transportOfferPricing.night_price : transportOfferPricing.day_price;
+
+    if (request.pax <= transportOfferPricing.base_pax) {
+      return basePrice;
+    }
+
+    const extraPax = request.pax - transportOfferPricing.base_pax;
+    return basePrice + extraPax * transportOfferPricing.extra_pax_price;
+  }, [editedIsFreeTransfer, transportOfferPricing, request.transport_time, request.pax, request.computed_price]);
+
+  // Handle opening edit pending dialog
+  const handleOpenEditPending = async () => {
+    setEditedIsFreeTransfer(request.is_free_transfer || false);
+    setIsEditPendingDialogOpen(true);
+    await fetchTransportOfferPricing();
+  };
+
+  // Handle saving edited pending request
+  const handleSaveEditedPending = async () => {
+    setIsLoading(true);
+    try {
+      const newPrice = editedIsFreeTransfer ? 0 : recalculatedPrice;
+      const newPaymentMode: 'at_riad' | 'to_driver' = editedIsFreeTransfer 
+        ? 'at_riad' 
+        : (transportOfferPricing?.payment_mode || (request.payment_mode as 'at_riad' | 'to_driver'));
+
+      const { error } = await supabase
+        .from('transport_requests')
+        .update({ 
+          is_free_transfer: editedIsFreeTransfer,
+          computed_price: newPrice,
+          payment_mode: newPaymentMode
+        })
+        .eq('id', request.id);
+
+      if (error) throw error;
+      toast.success(t('save'));
+      setIsEditPendingDialogOpen(false);
+      onUpdate();
+    } catch (error) {
+      console.error('Error updating pending request:', error);
+      toast.error(t('error'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const offerName = language === 'fr' && request.transport_offer.name_fr 
     ? request.transport_offer.name_fr 
     : request.transport_offer.name;
@@ -340,6 +490,10 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             <RequestDetails request={request} offerName={offerName} flightTrainNumber={flightTrainNumber} t={t} />
             {request.status === 'pending' && (
               <DialogFooter>
+                <Button variant="ghost" onClick={handleOpenEditPending} disabled={isLoading}>
+                  <Edit2 className="h-4 w-4 mr-1" />
+                  {t('edit_pending_request')}
+                </Button>
                 <Button variant="outline" onClick={() => setIsRejectDialogOpen(true)} disabled={isLoading}>
                   <X className="h-4 w-4 mr-1" />
                   {t('reject')}
@@ -557,6 +711,15 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
           {request.status === 'pending' && (
             <div className="flex gap-2 pt-2">
               <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={handleOpenEditPending}
+                disabled={isLoading}
+              >
+                <Edit2 className="h-4 w-4 mr-1" />
+                {t('edit_pending_request')}
+              </Button>
+              <Button 
                 variant="default" 
                 size="sm" 
                 className="flex-1"
@@ -691,6 +854,82 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             </Button>
             <Button variant="destructive" onClick={handleCancel} disabled={isLoading || !cancelReason.trim()}>
               {isLoading ? <Loader2 className="animate-spin" /> : t('cancel_transport')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Pending Request Dialog */}
+      <Dialog open={isEditPendingDialogOpen} onOpenChange={setIsEditPendingDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('edit_pending_request')}</DialogTitle>
+            <DialogDescription>
+              {t('edit_pending_description')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Free Transfer Toggle */}
+            <div className="flex items-center justify-between p-4 rounded-xl border border-border">
+              <div className="flex items-center gap-3">
+                <Gift className="h-5 w-5 text-primary" />
+                <div>
+                  <Label htmlFor="editFreeTransfer" className="font-medium cursor-pointer">
+                    {t('complimentary_transfer_label')}
+                  </Label>
+                  {!editedIsFreeTransfer && (
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {t('price_will_be_recalculated')}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Switch
+                id="editFreeTransfer"
+                checked={editedIsFreeTransfer}
+                onCheckedChange={setEditedIsFreeTransfer}
+              />
+            </div>
+
+            {/* Price Preview */}
+            <div className={`p-4 rounded-xl border ${editedIsFreeTransfer ? 'bg-status-confirmed/10 border-status-confirmed/30' : 'bg-accent/50 border-border'}`}>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">
+                  {editedIsFreeTransfer ? t('payment_complimentary') : t('recalculated_price')}
+                </span>
+                {isPricingLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (
+                  <span className={`text-2xl font-bold ${editedIsFreeTransfer ? 'text-status-confirmed' : 'text-primary'}`}>
+                    {recalculatedPrice.toFixed(0)} MAD
+                  </span>
+                )}
+              </div>
+              {!editedIsFreeTransfer && transportOfferPricing && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {transportOfferPricing.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
+                </p>
+              )}
+            </div>
+
+            {/* Request Summary */}
+            <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t('passengers')}</span>
+                <span className="font-medium">{request.pax}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t('transport_time')}</span>
+                <span className="font-medium">{request.transport_time}</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditPendingDialogOpen(false)}>
+              {t('cancel')}
+            </Button>
+            <Button onClick={handleSaveEditedPending} disabled={isLoading || isPricingLoading}>
+              {isLoading ? <Loader2 className="animate-spin" /> : t('save')}
             </Button>
           </DialogFooter>
         </DialogContent>
