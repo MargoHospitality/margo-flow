@@ -213,24 +213,35 @@ export function TransportForm({ reservation, riadWhatsapp, onBack, onSuccess }: 
         language: language, // Store guest's language for notifications
       };
 
-      // Use RPC function to bypass RLS issues for anonymous users
-      const { data: newId, error } = await supabase.rpc('create_transport_request_public', {
-        _reservation_id: reservation.reservation_id,
-        _riad_id: reservation.riad_id,
-        _transport_offer_id: selectedOffer.id,
-        _transport_date: transportDate,
-        _transport_time: transportTime,
-        _pax: pax,
-        _computed_price: computedPrice,
-        _payment_mode: isFreeTransfer ? 'at_riad' : selectedOffer.payment_mode,
-        _payload_details: payloadDetails,
-        _guest_comment: guestComment.trim() || null,
-        _is_free_transfer: isFreeTransfer,
+      // Submit transport request via Edge Function (includes rate limiting)
+      const { data: response, error } = await supabase.functions.invoke('submit-transport-request', {
+        body: {
+          reservation_id: reservation.reservation_id,
+          riad_id: reservation.riad_id,
+          transport_offer_id: selectedOffer.id,
+          transport_date: transportDate,
+          transport_time: transportTime,
+          pax: pax,
+          computed_price: computedPrice,
+          payment_mode: isFreeTransfer ? 'at_riad' : selectedOffer.payment_mode,
+          payload_details: payloadDetails,
+          guest_comment: guestComment.trim() || null,
+          is_free_transfer: isFreeTransfer,
+        }
       });
 
       if (error) throw error;
 
-      const insertedData = { id: newId };
+      // Check for rate limit exceeded response
+      if (!response?.success) {
+        if (response?.error?.includes('Rate limit exceeded')) {
+          toast.error(t('rate_limit_exceeded') || 'Too many requests. Please try again in a few minutes.');
+          return;
+        }
+        throw new Error(response?.error || 'Failed to submit transport request');
+      }
+
+      const insertedData = { id: response.data };
 
       // Determine if this is an urgent request (within 48 hours)
       const transportDateObj = parseISO(transportDate);
