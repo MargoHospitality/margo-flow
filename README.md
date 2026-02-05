@@ -1,4 +1,6 @@
 # Welcome to your Lovable project
+ 
+ MargoFlow - Transport booking system for riads in Morocco.
 
 ## Project info
 
