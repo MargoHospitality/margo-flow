@@ -61,6 +61,7 @@ export const translations = {
     captcha_required: 'Please complete the verification to continue.',
     existing_request: 'A transport request already exists for this reservation.',
     rate_limited: 'Too many attempts. Please wait a moment.',
+    rate_limit_exceeded: 'Too many requests. Please try again in a few minutes.',
     check_in_date_mismatch: 'The check-in date does not match our records. Please verify and try again.',
 
     // Guest contact info
@@ -225,6 +226,7 @@ export const translations = {
     captcha_required: 'Veuillez compléter la vérification pour continuer.',
     existing_request: 'Une demande de transport existe déjà pour cette réservation.',
     rate_limited: 'Trop de tentatives. Veuillez patienter un moment.',
+    rate_limit_exceeded: 'Trop de requêtes. Veuillez réessayer dans quelques minutes.',
     check_in_date_mismatch: 'La date d\'arrivée ne correspond pas à nos enregistrements. Veuillez vérifier et réessayer.',
 
     // Guest contact info
