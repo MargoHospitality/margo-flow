@@ -90,7 +90,7 @@ serve(async (req) => {
     });
 
     // Inject token into Cloudbeds custom field
-    const cloudbedsApiKey = Deno.env.get("CLOUDBEDS_API_KEY_WRITE")!;
+    const cloudbedsApiKey = Deno.env.get("CLOUDBEDS_API_KEY")!;
     
     const cloudbedsResponse = await fetch(
       `https://api.cloudbeds.com/api/v1.3/putReservation?propertyID=${payload.propertyID}`,
