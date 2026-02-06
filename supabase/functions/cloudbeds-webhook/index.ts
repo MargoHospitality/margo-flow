@@ -89,6 +89,37 @@ serve(async (req) => {
       url: tokenData.url,
     });
 
+    // Inject token into Cloudbeds custom field
+    const cloudbedsApiKey = Deno.env.get("CLOUDBEDS_API_KEY_WRITE")!;
+    
+    const cloudbedsResponse = await fetch(
+      `https://api.cloudbeds.com/api/v1.3/putReservation?propertyID=${payload.propertyID}`,
+      {
+        method: "PUT",
+        headers: {
+          "x-api-key": cloudbedsApiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reservationID: payload.reservationID,
+          customFields: [
+            {
+              customFieldName: "guest_app_token",
+              customFieldValue: tokenData.token,
+            },
+          ],
+        }),
+      }
+    );
+
+    if (!cloudbedsResponse.ok) {
+      const errorText = await cloudbedsResponse.text();
+      console.error("Failed to inject token in Cloudbeds:", errorText);
+      // Continue anyway - token is in Supabase
+    } else {
+      console.log("Token injected in Cloudbeds custom field");
+    }
+
     // TODO: Send email/SMS to guest with token URL
     // await sendGuestEmail(payload.guestEmail, tokenData.url);
 
