@@ -1,0 +1,49 @@
+project_id = "bndrfqfzrolxfmdfqaqa"
+
+[functions.admin-search-user]
+verify_jwt = false
+
+[functions.email-hook]
+verify_jwt = false
+
+[functions.send-manager-notification]
+verify_jwt = false
+
+[functions.send-client-confirmation]
+verify_jwt = false
+
+[functions.cloudbeds-check]
+verify_jwt = false
+
+[functions.cloudbeds-lookup]
+verify_jwt = false
+
+[functions.cloudbeds-webhook]
+verify_jwt = false
+
+[functions.cloudbeds-reconcile]
+verify_jwt = false
+
+[functions.cloudbeds-scheduled-reconcile]
+verify_jwt = false
+
+[functions.cloudbeds-add-note]
+verify_jwt = false
+
+[functions.send-whatsapp]
+verify_jwt = false
+
+[functions.notify-client]
+verify_jwt = false
+
+[functions.notify-manager]
+verify_jwt = false
+
+[functions.send-reminder-emails]
+verify_jwt = false
+
+[functions.export-data]
+verify_jwt = false
+
+[functions.submit-transport-request]
+verify_jwt = false

@@ -1,0 +1,221 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:wght@500;600&display=swap');
+
+@layer base {
+  :root {
+    /* Margo Blue Primary - #048E9A */
+    --primary: 184 95% 31%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Clean, warm white background */
+    --background: 40 33% 98%;
+    --foreground: 200 15% 15%;
+
+    /* Soft elevated cards */
+    --card: 0 0% 100%;
+    --card-foreground: 200 15% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 15% 15%;
+
+    /* Subtle secondary */
+    --secondary: 40 20% 95%;
+    --secondary-foreground: 200 15% 25%;
+
+    /* Muted elements */
+    --muted: 40 15% 92%;
+    --muted-foreground: 200 10% 45%;
+
+    /* Accent matches primary */
+    --accent: 184 70% 92%;
+    --accent-foreground: 184 95% 25%;
+
+    /* Error states */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Subtle borders */
+    --border: 40 15% 88%;
+    --input: 40 15% 90%;
+    --ring: 184 95% 31%;
+
+    --radius: 1rem;
+
+    /* Status colors */
+    --status-pending: 45 93% 47%;
+    --status-pending-foreground: 45 93% 15%;
+    --status-confirmed: 160 84% 39%;
+    --status-confirmed-foreground: 0 0% 100%;
+    --status-rejected: 0 72% 51%;
+    --status-rejected-foreground: 0 0% 100%;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 200 15% 15%;
+    --sidebar-primary: 184 95% 31%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 40 20% 95%;
+    --sidebar-accent-foreground: 200 15% 25%;
+    --sidebar-border: 40 15% 88%;
+    --sidebar-ring: 184 95% 31%;
+
+    /* Brand gradient */
+    --gradient-brand: linear-gradient(135deg, hsl(184 95% 31%), hsl(170 80% 35%));
+  }
+
+  .dark {
+    --primary: 184 80% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --background: 200 20% 8%;
+    --foreground: 40 20% 95%;
+
+    --card: 200 15% 12%;
+    --card-foreground: 40 20% 95%;
+
+    --popover: 200 15% 12%;
+    --popover-foreground: 40 20% 95%;
+
+    --secondary: 200 15% 18%;
+    --secondary-foreground: 40 20% 90%;
+
+    --muted: 200 15% 22%;
+    --muted-foreground: 40 15% 60%;
+
+    --accent: 184 40% 20%;
+    --accent-foreground: 184 80% 70%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 15% 22%;
+    --input: 200 15% 22%;
+    --ring: 184 80% 45%;
+
+    --sidebar-background: 200 20% 10%;
+    --sidebar-foreground: 40 20% 95%;
+    --sidebar-primary: 184 80% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 200 15% 18%;
+    --sidebar-accent-foreground: 40 20% 90%;
+    --sidebar-border: 200 15% 22%;
+    --sidebar-ring: 184 80% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+}
+
+@layer components {
+  /* Focus-visible for accessibility */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  /* Card with subtle shadow */
+  .card-elevated {
+    @apply bg-card rounded-2xl border border-border shadow-sm;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.03), 0 1px 2px -1px rgb(0 0 0 / 0.03);
+  }
+
+  /* Badge styles */
+  .badge-status {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .badge-pending {
+    background-color: hsl(var(--status-pending) / 0.15);
+    color: hsl(var(--status-pending));
+  }
+
+  .badge-confirmed {
+    background-color: hsl(var(--status-confirmed));
+    color: hsl(var(--status-confirmed-foreground));
+  }
+
+  .badge-rejected {
+    background-color: hsl(var(--status-rejected) / 0.1);
+    color: hsl(var(--status-rejected));
+  }
+
+  /* Consistent form input styling */
+  .input-mobile {
+    @apply h-14 px-4 text-base rounded-xl border-2 border-input bg-background;
+    @apply focus:border-primary focus:ring-0 focus:outline-none;
+    @apply transition-colors duration-200;
+  }
+
+  /* Select trigger matching input-mobile sizing */
+  .select-mobile {
+    @apply h-14 px-4 text-base rounded-xl border-2 border-input bg-background;
+    @apply focus:border-primary focus:ring-0 focus:outline-none;
+    @apply transition-colors duration-200;
+  }
+
+  /* Smooth animations */
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.4s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.3s ease-out forwards;
+  }
+
+  /* Staggered animation delays */
+  .delay-100 { animation-delay: 100ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+}
+
+/* Safe area padding for mobile devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
