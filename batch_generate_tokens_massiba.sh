@@ -4,15 +4,20 @@
 
 set -e
 
-SUPABASE_URL="https://bndrfqfzrolxfmdfqaqa.supabase.co"
-SUPABASE_SERVICE_KEY=$(cat ~/.config/supabase/access_token 2>/dev/null || echo "")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/load-env.sh
+source "${SCRIPT_DIR}/scripts/load-env.sh"
+load_env_files
+
+SUPABASE_URL="$(get_supabase_url)"
+SUPABASE_ANON_KEY="$(get_supabase_anon_key)"
+SUPABASE_SERVICE_ROLE_KEY="$(get_supabase_service_role_key)"
 RIAD_UUID="a1111111-1111-1111-1111-111111111111"
 PROPERTY_ID="9462"
 
-if [ -z "$SUPABASE_SERVICE_KEY" ]; then
-  echo "❌ Supabase access token not found in ~/.config/supabase/access_token"
-  exit 1
-fi
+require_env "SUPABASE_URL" "Set SUPABASE_URL or VITE_SUPABASE_URL in .env.local/.env."
+require_env "SUPABASE_ANON_KEY" "Set SUPABASE_ANON_KEY or VITE_SUPABASE_PUBLISHABLE_KEY in .env.local/.env."
+require_env "SUPABASE_SERVICE_ROLE_KEY" "Set SUPABASE_SERVICE_ROLE_KEY in an untracked env file before running this script."
 
 echo "🏨 Batch Token Generation - Riad Massiba"
 echo "=========================================="
@@ -21,8 +26,8 @@ echo ""
 # Fetch all future reservations
 echo "📋 Fetching reservations from Supabase..."
 RESERVATIONS=$(curl -s "${SUPABASE_URL}/rest/v1/reservations?riad_id=eq.${RIAD_UUID}&check_in_date=gte.2026-02-06&status=neq.canceled&select=id,reservation_id,guest_first_name,guest_last_name,check_in_date,property_id&order=check_in_date.asc" \
-  -H "apikey: REDACTED_SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer REDACTED_SUPABASE_ANON_KEY")
+  -H "apikey: ${SUPABASE_ANON_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
 
 TOTAL=$(echo "$RESERVATIONS" | jq 'length')
 echo "✅ Found $TOTAL future reservations"
@@ -42,7 +47,7 @@ echo "$RESERVATIONS" | jq -c '.[]' | while read -r reservation; do
   
   # Call generate-guest-token Edge Function
   RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/functions/v1/generate-guest-token" \
-    -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Content-Type: application/json" \
     -d "{
       \"reservationId\": \"${RESERVATION_ID}\",

@@ -5,13 +5,16 @@
 
 set -e
 
-SUPABASE_URL="https://bndrfqfzrolxfmdfqaqa.supabase.co"
-SUPABASE_SERVICE_KEY=$(cat ~/.config/supabase/access_token 2>/dev/null || echo "")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/load-env.sh
+source "${SCRIPT_DIR}/scripts/load-env.sh"
+load_env_files
 
-if [ -z "$SUPABASE_SERVICE_KEY" ]; then
-  echo "❌ Supabase access token not found in ~/.config/supabase/access_token"
-  exit 1
-fi
+SUPABASE_URL="$(get_supabase_url)"
+SUPABASE_API_TOKEN="${SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_ACCESS_TOKEN:-$(cat ~/.config/supabase/access_token 2>/dev/null || echo "")}}"
+
+require_env "SUPABASE_URL" "Set SUPABASE_URL or VITE_SUPABASE_URL in .env.local/.env."
+require_env "SUPABASE_API_TOKEN" "Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ACCESS_TOKEN before running this script."
 
 TEST_SCENARIO="${1:-manual_cancellation}"
 
@@ -53,7 +56,7 @@ echo ""
 
 RESPONSE=$(curl -s -X POST \
   "$SUPABASE_URL/functions/v1/notify-client-cancellation" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d "$PAYLOAD")
 

@@ -4,16 +4,26 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/load-env.sh
+source "${SCRIPT_DIR}/scripts/load-env.sh"
+load_env_files
+
 echo "=== Test Guest Tokenization System ==="
 echo ""
 
-SUPABASE_URL="https://bndrfqfzrolxfmdfqaqa.supabase.co"
-SUPABASE_SERVICE_KEY="REDACTED_SUPABASE_SERVICE_ROLE_KEY"
+SUPABASE_URL="$(get_supabase_url)"
+SUPABASE_SERVICE_ROLE_KEY="$(get_supabase_service_role_key)"
+SUPABASE_PROJECT_ID="$(get_supabase_project_id)"
+
+require_env "SUPABASE_URL" "Set SUPABASE_URL or VITE_SUPABASE_URL in .env.local/.env."
+require_env "SUPABASE_SERVICE_ROLE_KEY" "Set SUPABASE_SERVICE_ROLE_KEY in an untracked env file before running this script."
+require_env "SUPABASE_PROJECT_ID" "Set SUPABASE_PROJECT_ID or VITE_SUPABASE_PROJECT_ID in .env.local/.env."
 
 echo "📋 Étape 1: Appliquer la migration SQL"
 echo "   Action: Copier le contenu de supabase/migrations/20260206001600_guest_tokens.sql"
 echo "   Et l'exécuter dans Supabase SQL Editor"
-echo "   URL: https://supabase.com/dashboard/project/bndrfqfzrolxfmdfqaqa/sql"
+echo "   URL: https://supabase.com/dashboard/project/${SUPABASE_PROJECT_ID}/sql"
 echo ""
 read -p "Migration appliquée? (y/n): " migration_done
 
@@ -32,8 +42,8 @@ echo ""
 
 # Test: Generate token
 RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/rest/v1/rpc/generate_guest_token" \
-  -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
     "p_reservation_id": "TEST-123456",
@@ -67,8 +77,8 @@ echo ""
 
 # Test: Verify token
 VERIFY_RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/rest/v1/rpc/verify_guest_token" \
-  -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Content-Type: application/json" \
   -d "{\"p_token\": \"$TOKEN\"}")
 
@@ -95,7 +105,7 @@ echo ""
 
 # Test: Webhook simulation
 WEBHOOK_RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/functions/v1/cloudbeds-webhook" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
     "event": "new_reservation",

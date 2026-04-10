@@ -1,7 +1,7 @@
 # Import SQL Margo Flow → Supabase
 
 ## URL SQL Editor
-https://supabase.com/dashboard/project/bndrfqfzrolxfmdfqaqa/sql/new
+https://supabase.com/dashboard/project/<SUPABASE_PROJECT_ID>/sql/new
 
 ## Ordre d'exécution (copier-coller chaque fichier)
 

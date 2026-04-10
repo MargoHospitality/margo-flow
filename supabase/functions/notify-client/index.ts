@@ -100,6 +100,7 @@ async function sendEmail(to: string[], subject: string, html: string) {
 }
 
 function buildConfirmationEmailHtml(data: NotifyClientRequest, t: typeof translations.en): string {
+  const logoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/assets/margoflow-logo.png`;
   const paymentModeText = data.isFreeTransfer ? t.paymentComplimentary : (data.paymentMode === 'at_riad' ? t.paymentAtRiad : t.paymentToDriver);
   const whatsappLink = data.managerWhatsapp 
     ? `https://wa.me/${data.managerWhatsapp.replace(/\D/g, '')}`
@@ -136,7 +137,7 @@ function buildConfirmationEmailHtml(data: NotifyClientRequest, t: typeof transla
           <!-- Header with Logo -->
           <tr>
             <td style="background-color: #ffffff; padding: 32px 40px; text-align: center; border-bottom: 1px solid #e5e7eb;">
-              <img src="https://bndrfqfzrolxfmdfqaqa.supabase.co/storage/v1/object/public/assets/margoflow-logo.png" alt="Margo Flow" style="height: 40px; width: auto;" />
+              <img src="${logoUrl}" alt="Margo Flow" style="height: 40px; width: auto;" />
             </td>
           </tr>
           

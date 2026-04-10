@@ -1,7 +1,14 @@
 #!/bin/bash
 # Configuration des secrets Supabase Edge Functions
 
-PROJECT_REF="bndrfqfzrolxfmdfqaqa"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/load-env.sh
+source "${SCRIPT_DIR}/scripts/load-env.sh"
+load_env_files
+
+PROJECT_REF="$(get_supabase_project_id)"
+
+require_env "PROJECT_REF" "Set SUPABASE_PROJECT_ID or VITE_SUPABASE_PROJECT_ID in .env.local/.env."
 
 echo "🔐 Configuration des secrets pour Margo Flow"
 echo ""
@@ -9,7 +16,7 @@ echo "Entre les valeurs quand demandé (ou Ctrl+C pour annuler)"
 echo ""
 
 # 1. Cloudbeds (déjà disponible)
-CLOUDBEDS_KEY=$(cat ~/.config/cloudbeds/api_key_write 2>/dev/null || echo "")
+CLOUDBEDS_KEY="${CLOUDBEDS_API_KEY:-$(cat ~/.config/cloudbeds/api_key_write 2>/dev/null || echo "")}"
 if [ -n "$CLOUDBEDS_KEY" ]; then
   echo "✅ CLOUDBEDS_API_KEY trouvée automatiquement"
 else

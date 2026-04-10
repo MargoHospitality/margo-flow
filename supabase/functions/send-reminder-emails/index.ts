@@ -87,6 +87,7 @@ function buildManagerReminderEmailHtml(data: {
   payloadDetails?: Record<string, string>;
   pax: number;
 }): string {
+  const logoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/assets/margoflow-logo.png`;
   // Build transport details rows from payloadDetails
   const transportDetailsHtml = Object.entries(data.payloadDetails || {})
     .filter(([key, value]) => !['guest_email', 'guest_whatsapp', 'language'].includes(key) && value && String(value).trim())
@@ -134,7 +135,7 @@ function buildManagerReminderEmailHtml(data: {
           <!-- Header with Logo -->
           <tr>
             <td style="background-color: #FFFFFF; padding: 32px 40px; text-align: center; border-bottom: 1px solid #E5E7EB;" class="mobile-padding">
-              <img src="https://bndrfqfzrolxfmdfqaqa.supabase.co/storage/v1/object/public/assets/margoflow-logo.png" alt="Margo Flow" width="180" style="display: block; margin: 0 auto; max-width: 180px; height: auto;" />
+              <img src="${logoUrl}" alt="Margo Flow" width="180" style="display: block; margin: 0 auto; max-width: 180px; height: auto;" />
             </td>
           </tr>
           
@@ -274,6 +275,7 @@ function buildReminderEmailHtml(
   },
   t: typeof translations.en
 ): string {
+  const logoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/assets/margoflow-logo.png`;
   const paymentModeText = data.isFreeTransfer ? t.paymentAtRiad : (data.paymentMode === 'at_riad' ? t.paymentAtRiad : t.paymentToDriver);
   const whatsappLink = data.managerWhatsapp 
     ? `https://wa.me/${data.managerWhatsapp.replace(/\D/g, '')}`
@@ -312,7 +314,7 @@ function buildReminderEmailHtml(
           <!-- Header with Logo -->
           <tr>
             <td style="background-color: #ffffff; padding: 32px 40px; text-align: center; border-bottom: 1px solid #e5e7eb;">
-              <img src="https://bndrfqfzrolxfmdfqaqa.supabase.co/storage/v1/object/public/assets/margoflow-logo.png" alt="Margo Flow" style="height: 40px; width: auto;" />
+              <img src="${logoUrl}" alt="Margo Flow" style="height: 40px; width: auto;" />
             </td>
           </tr>
           

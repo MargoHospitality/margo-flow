@@ -5,17 +5,21 @@
 
 set -e
 
-SUPABASE_URL="https://bndrfqfzrolxfmdfqaqa.supabase.co"
-SUPABASE_ANON_KEY="REDACTED_SUPABASE_ANON_KEY"
-SUPABASE_SERVICE_KEY=$(cat ~/.config/supabase/access_token 2>/dev/null || echo "")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/load-env.sh
+source "${SCRIPT_DIR}/scripts/load-env.sh"
+load_env_files
+
+SUPABASE_URL="$(get_supabase_url)"
+SUPABASE_ANON_KEY="$(get_supabase_anon_key)"
+SUPABASE_SERVICE_ROLE_KEY="$(get_supabase_service_role_key)"
 RIAD_UUID="a1111111-1111-1111-1111-111111111111"
 PROPERTY_ID="9462"
-CLOUDBEDS_API_KEY=$(cat ~/.config/cloudbeds/api_key_write 2>/dev/null || cat ~/.config/cloudbeds/api_key 2>/dev/null)
+CLOUDBEDS_API_KEY="${CLOUDBEDS_API_KEY:-$(cat ~/.config/cloudbeds/api_key_write 2>/dev/null || cat ~/.config/cloudbeds/api_key 2>/dev/null)}"
 
-if [ -z "$SUPABASE_SERVICE_KEY" ]; then
-  echo "❌ Supabase service key not found"
-  exit 1
-fi
+require_env "SUPABASE_URL" "Set SUPABASE_URL or VITE_SUPABASE_URL in .env.local/.env."
+require_env "SUPABASE_ANON_KEY" "Set SUPABASE_ANON_KEY or VITE_SUPABASE_PUBLISHABLE_KEY in .env.local/.env."
+require_env "SUPABASE_SERVICE_ROLE_KEY" "Set SUPABASE_SERVICE_ROLE_KEY in an untracked env file before running this script."
 
 if [ -z "$CLOUDBEDS_API_KEY" ]; then
   echo "❌ Cloudbeds API key not found"
@@ -53,8 +57,8 @@ echo "$RESERVATIONS" | jq -c '.[]' | while read -r reservation; do
   
   # Call Supabase RPC function
   RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/rest/v1/rpc/generate_guest_token" \
-    -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-    -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Content-Type: application/json" \
     -d "{
       \"p_reservation_id\": \"${RESERVATION_ID}\",

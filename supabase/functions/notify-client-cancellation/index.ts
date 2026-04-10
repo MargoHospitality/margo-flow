@@ -100,6 +100,7 @@ async function sendEmail(to: string[], subject: string, html: string) {
 }
 
 function buildCancellationEmailHtml(data: NotifyCancellationRequest, t: typeof translations.en, managerEmail?: string, managerWhatsapp?: string): string {
+  const logoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/assets/margoflow-logo.png`;
   const whatsappLink = managerWhatsapp 
     ? `https://wa.me/${managerWhatsapp.replace(/\D/g, '')}`
     : null;
@@ -140,7 +141,7 @@ function buildCancellationEmailHtml(data: NotifyCancellationRequest, t: typeof t
           <!-- Header with Logo -->
           <tr>
             <td style="background-color: #ffffff; padding: 32px 40px; text-align: center; border-bottom: 1px solid #e5e7eb;">
-              <img src="https://bndrfqfzrolxfmdfqaqa.supabase.co/storage/v1/object/public/assets/margoflow-logo.png" alt="Margo Flow" style="height: 40px; width: auto;" />
+              <img src="${logoUrl}" alt="Margo Flow" style="height: 40px; width: auto;" />
             </td>
           </tr>
           
