@@ -77,7 +77,7 @@ serve(async (req) => {
 
     const { data: paymentSettings, error: settingsError } = await adminClient
       .from("riad_payment_settings")
-      .select("cloudbeds_payment_description, riad:riads(id, name, cloudbeds_property_id)")
+      .select("cloudbeds_payment_description, cloudbeds_payment_method, riad:riads(id, name, cloudbeds_property_id)")
       .eq("riad_id", paymentRecord.riad_id)
       .maybeSingle();
 
@@ -88,6 +88,11 @@ serve(async (req) => {
     const riad = paymentSettings?.riad as { id: string; name: string; cloudbeds_property_id: string | null } | null;
     if (!riad?.cloudbeds_property_id) {
       return jsonResponse({ success: false, error: "Property is missing Cloudbeds property ID" }, 400);
+    }
+
+    const cloudbedsPaymentMethod = paymentSettings?.cloudbeds_payment_method || paymentRecord.cloudbeds_payment_method;
+    if (!cloudbedsPaymentMethod) {
+      return jsonResponse({ success: false, error: "Property is missing Cloudbeds payment method" }, 400);
     }
 
     const secretMap = parseStripeSecretMap();
@@ -125,11 +130,11 @@ serve(async (req) => {
     const cloudbedsBody = new URLSearchParams();
     cloudbedsBody.append("propertyID", riad.cloudbeds_property_id);
     cloudbedsBody.append("reservationID", paymentRecord.reservation_id);
-    cloudbedsBody.append("type", paymentRecord.cloudbeds_payment_method);
+    cloudbedsBody.append("type", cloudbedsPaymentMethod);
     cloudbedsBody.append("amount", formatMadAmount(paymentRecord.amount));
     cloudbedsBody.append("description", descriptionParts.join(" | "));
 
-    if (paymentRecord.cloudbeds_payment_method.toLowerCase() === "credit" && cardBrandMap[cardBrand || ""]) {
+    if (cloudbedsPaymentMethod.toLowerCase() === "credit" && cardBrandMap[cardBrand || ""]) {
       cloudbedsBody.append("cardType", cardBrandMap[cardBrand || ""]);
     }
 
@@ -168,6 +173,7 @@ serve(async (req) => {
         cloudbeds_logged: true,
         cloudbeds_logged_at: new Date().toISOString(),
         cloudbeds_payment_reference: reference,
+        cloudbeds_payment_method: cloudbedsPaymentMethod,
         cloudbeds_error_message: null,
         stripe_payment_method_summary: cardSummary,
       })

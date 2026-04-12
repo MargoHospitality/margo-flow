@@ -160,6 +160,20 @@ export default function BackofficePayments() {
   const amountIsValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
   const amountLabel = amountIsValid ? `${parsedAmount.toFixed(2)} MAD` : '0.00 MAD';
 
+  async function fetchPaymentStatus(currentPaymentId: string) {
+    const { data, error } = await supabase
+      .from('reservation_payments')
+      .select('id, amount, currency_code, stripe_payment_intent_id, cloudbeds_logged')
+      .eq('id', currentPaymentId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
+
   async function lookupReservation() {
     if (!selectedSetting?.riad || !reservationId.trim() || !checkInDate) {
       toast.error('Select a property, reservation ID, and check-in date');
@@ -257,28 +271,62 @@ export default function BackofficePayments() {
         throw new Error('Authentication required');
       }
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/finalize-stripe-payment`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ payment_id: paymentId }),
-        },
-      );
+      let lastError: Error | null = null;
 
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to finalize payment');
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/finalize-stripe-payment`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ payment_id: paymentId }),
+            },
+          );
+
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || 'Failed to finalize payment');
+          }
+
+          setLastSuccess(result as FinalizePaymentResponse);
+          setClientSecret('');
+          setPaymentId('');
+          setAmountInput('');
+          toast.success('Payment charged and posted to Cloudbeds');
+          return;
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error('Failed to finalize payment');
+
+          if (attempt === 0) {
+            await new Promise((resolve) => window.setTimeout(resolve, 1200));
+          }
+        }
       }
 
-      setLastSuccess(result as FinalizePaymentResponse);
-      setClientSecret('');
-      setPaymentId('');
-      setAmountInput('');
-      toast.success('Payment charged and posted to Cloudbeds');
+      const paymentStatus = await fetchPaymentStatus(paymentId);
+      if (paymentStatus?.cloudbeds_logged && paymentStatus.stripe_payment_intent_id) {
+        const recoveredSuccess: FinalizePaymentResponse = {
+          success: true,
+          paymentId: paymentStatus.id,
+          paymentIntentId: paymentStatus.stripe_payment_intent_id,
+          cloudbedsLogged: true,
+          amount: Number(paymentStatus.amount),
+          currency: paymentStatus.currency_code,
+        };
+
+        setLastSuccess(recoveredSuccess);
+        setClientSecret('');
+        setPaymentId('');
+        setAmountInput('');
+        toast.success('Payment charged and posted to Cloudbeds');
+        return;
+      }
+
+      throw lastError || new Error('Failed to finalize payment');
     } finally {
       setIsFinalizingPayment(false);
     }
