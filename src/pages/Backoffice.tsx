@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { RequestCard } from '@/components/backoffice/RequestCard';
-import { Loader2, LogOut, Bell, Shield, AlertCircle, Search, Calendar, Clock, CalendarDays, List, XCircle, Eye, EyeOff } from 'lucide-react';
+import { Loader2, LogOut, Bell, Shield, AlertCircle, Search, Calendar, Clock, CalendarDays, List, XCircle, Eye, EyeOff, CreditCard } from 'lucide-react';
 import margoflowLogo from '@/assets/margoflow-logo.png';
 import { format, isToday, isTomorrow, addDays, parseISO, isAfter, isBefore } from 'date-fns';
 
@@ -258,6 +258,12 @@ export default function Backoffice() {
                 </Button>
               </Link>
             )}
+            <Link to="/backoffice/payments">
+              <Button variant="ghost" size="sm">
+                <CreditCard className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Payments</span>
+              </Button>
+            </Link>
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">{t('logout')}</span>

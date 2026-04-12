@@ -7,11 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Search, UserCog, Shield, UserPlus, Users, Building, Truck, MapPin, Cloud, MessageSquare, Filter, MailCheck, RefreshCw, KeyRound, Clock } from 'lucide-react';
+import { Loader2, ArrowLeft, Search, UserCog, Shield, UserPlus, Users, Building, Truck, MapPin, Cloud, MessageSquare, Filter, MailCheck, RefreshCw, KeyRound, Clock, CreditCard } from 'lucide-react';
 import CloudbedsIntegration from '@/components/admin/CloudbedsIntegration';
 import WhatsAppMonitoring from '@/components/admin/WhatsAppMonitoring';
 import { SearchablePropertySelect } from '@/components/admin/SearchablePropertySelect';
@@ -28,7 +29,26 @@ interface Riad {
   manager_email: string | null;
   manager_whatsapp: string | null;
   is_active: boolean;
+  payment_enabled: boolean;
+  payment_label: string;
+  stripe_publishable_key: string;
+  stripe_secret_key_alias: string;
+  cloudbeds_payment_method: string;
+  cloudbeds_payment_description: string;
 }
+
+const EMPTY_RIAD_FORM = {
+  name: '',
+  cloudbeds_property_id: '',
+  manager_email: '',
+  manager_whatsapp: '',
+  payment_enabled: false,
+  payment_label: 'Card payment',
+  stripe_publishable_key: '',
+  stripe_secret_key_alias: '',
+  cloudbeds_payment_method: '',
+  cloudbeds_payment_description: '',
+};
 
 interface TransportOffer {
   id: string;
@@ -110,7 +130,7 @@ export default function Admin() {
   const [riads, setRiads] = useState<Riad[]>([]);
   const [isLoadingRiads, setIsLoadingRiads] = useState(false);
   const [editingRiad, setEditingRiad] = useState<Riad | null>(null);
-  const [newRiad, setNewRiad] = useState({ name: '', cloudbeds_property_id: '', manager_email: '', manager_whatsapp: '' });
+  const [newRiad, setNewRiad] = useState(EMPTY_RIAD_FORM);
   const [isSavingRiad, setIsSavingRiad] = useState(false);
   
   // Transport offers state
@@ -191,14 +211,34 @@ export default function Admin() {
   async function fetchRiads() {
     setIsLoadingRiads(true);
     try {
-      const { data, error } = await supabase
-        .from('riads')
-        .select('*')
-        .order('name');
-      
-      if (!error && data) {
-        setRiads(data as Riad[]);
-      }
+      const [{ data, error }, { data: paymentSettings, error: paymentSettingsError }] = await Promise.all([
+        supabase
+          .from('riads')
+          .select('*')
+          .order('name'),
+        supabase
+          .from('riad_payment_settings')
+          .select('*'),
+      ]);
+
+      if (error) throw error;
+      if (paymentSettingsError) throw paymentSettingsError;
+
+      const settingsByRiadId = new Map((paymentSettings || []).map((settings) => [settings.riad_id, settings]));
+      const mergedRiads = (data || []).map((riad) => {
+        const settings = settingsByRiadId.get(riad.id);
+        return {
+          ...riad,
+          payment_enabled: settings?.is_enabled ?? false,
+          payment_label: settings?.payment_label ?? 'Card payment',
+          stripe_publishable_key: settings?.stripe_publishable_key ?? '',
+          stripe_secret_key_alias: settings?.stripe_secret_key_alias ?? '',
+          cloudbeds_payment_method: settings?.cloudbeds_payment_method ?? '',
+          cloudbeds_payment_description: settings?.cloudbeds_payment_description ?? '',
+        };
+      });
+
+      setRiads(mergedRiads as Riad[]);
     } catch (error) {
       console.error('Error fetching riads:', error);
     } finally {
@@ -499,6 +539,12 @@ export default function Admin() {
   }
 
   async function handleSaveRiad(riad: Partial<Riad>) {
+    const paymentEnabled = Boolean(riad.payment_enabled);
+    if (paymentEnabled && (!riad.stripe_publishable_key || !riad.stripe_secret_key_alias || !riad.cloudbeds_payment_method)) {
+      toast.error('Stripe publishable key, secret alias, and Cloudbeds payment method are required when payments are enabled');
+      return;
+    }
+
     setIsSavingRiad(true);
     try {
       if (editingRiad) {
@@ -513,21 +559,51 @@ export default function Admin() {
           .eq('id', editingRiad.id);
 
         if (error) throw error;
+        const { error: paymentSettingsError } = await supabase
+          .from('riad_payment_settings')
+          .upsert({
+            riad_id: editingRiad.id,
+            is_enabled: paymentEnabled,
+            payment_label: riad.payment_label?.trim() || 'Card payment',
+            currency_code: 'MAD',
+            stripe_publishable_key: riad.stripe_publishable_key?.trim() || null,
+            stripe_secret_key_alias: riad.stripe_secret_key_alias?.trim() || null,
+            cloudbeds_payment_method: riad.cloudbeds_payment_method?.trim() || null,
+            cloudbeds_payment_description: riad.cloudbeds_payment_description?.trim() || null,
+          }, { onConflict: 'riad_id' });
+
+        if (paymentSettingsError) throw paymentSettingsError;
         toast.success('Riad updated');
         setEditingRiad(null);
       } else {
-        const { error } = await supabase
+        const { data: insertedRiad, error } = await supabase
           .from('riads')
           .insert({
             name: riad.name!,
             cloudbeds_property_id: riad.cloudbeds_property_id || null,
             manager_email: riad.manager_email || null,
             manager_whatsapp: riad.manager_whatsapp || null
-          });
+          })
+          .select('id')
+          .single();
 
         if (error) throw error;
+        const { error: paymentSettingsError } = await supabase
+          .from('riad_payment_settings')
+          .upsert({
+            riad_id: insertedRiad.id,
+            is_enabled: paymentEnabled,
+            payment_label: riad.payment_label?.trim() || 'Card payment',
+            currency_code: 'MAD',
+            stripe_publishable_key: riad.stripe_publishable_key?.trim() || null,
+            stripe_secret_key_alias: riad.stripe_secret_key_alias?.trim() || null,
+            cloudbeds_payment_method: riad.cloudbeds_payment_method?.trim() || null,
+            cloudbeds_payment_description: riad.cloudbeds_payment_description?.trim() || null,
+          }, { onConflict: 'riad_id' });
+
+        if (paymentSettingsError) throw paymentSettingsError;
         toast.success('Riad created');
-        setNewRiad({ name: '', cloudbeds_property_id: '', manager_email: '', manager_whatsapp: '' });
+        setNewRiad(EMPTY_RIAD_FORM);
       }
       fetchRiads();
     } catch (error) {
@@ -933,6 +1009,86 @@ export default function Admin() {
                     />
                   </div>
                 </div>
+                <div className="rounded-lg border border-border/60 p-4 space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        Payment Module
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Enable manager card payments for this property and map it to the right Stripe account alias.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={editingRiad ? editingRiad.payment_enabled : newRiad.payment_enabled}
+                      onCheckedChange={(checked) => editingRiad
+                        ? setEditingRiad({ ...editingRiad, payment_enabled: checked })
+                        : setNewRiad({ ...newRiad, payment_enabled: checked })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Payment Label</Label>
+                      <Input
+                        value={editingRiad ? editingRiad.payment_label : newRiad.payment_label}
+                        onChange={(e) => editingRiad
+                          ? setEditingRiad({ ...editingRiad, payment_label: e.target.value })
+                          : setNewRiad({ ...newRiad, payment_label: e.target.value })
+                        }
+                        placeholder="Card payment"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Cloudbeds Payment Method</Label>
+                      <Input
+                        value={editingRiad ? editingRiad.cloudbeds_payment_method : newRiad.cloudbeds_payment_method}
+                        onChange={(e) => editingRiad
+                          ? setEditingRiad({ ...editingRiad, cloudbeds_payment_method: e.target.value })
+                          : setNewRiad({ ...newRiad, cloudbeds_payment_method: e.target.value })
+                        }
+                        placeholder="credit"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Stripe Publishable Key</Label>
+                      <Input
+                        value={editingRiad ? editingRiad.stripe_publishable_key : newRiad.stripe_publishable_key}
+                        onChange={(e) => editingRiad
+                          ? setEditingRiad({ ...editingRiad, stripe_publishable_key: e.target.value })
+                          : setNewRiad({ ...newRiad, stripe_publishable_key: e.target.value })
+                        }
+                        placeholder="pk_live_..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Stripe Secret Alias</Label>
+                      <Input
+                        value={editingRiad ? editingRiad.stripe_secret_key_alias : newRiad.stripe_secret_key_alias}
+                        onChange={(e) => editingRiad
+                          ? setEditingRiad({ ...editingRiad, stripe_secret_key_alias: e.target.value })
+                          : setNewRiad({ ...newRiad, stripe_secret_key_alias: e.target.value })
+                        }
+                        placeholder="margo_main"
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Cloudbeds Payment Description</Label>
+                      <Input
+                        value={editingRiad ? editingRiad.cloudbeds_payment_description : newRiad.cloudbeds_payment_description}
+                        onChange={(e) => editingRiad
+                          ? setEditingRiad({ ...editingRiad, cloudbeds_payment_description: e.target.value })
+                          : setNewRiad({ ...newRiad, cloudbeds_payment_description: e.target.value })
+                        }
+                        placeholder="Backoffice card payment via Margo Flow"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    The secret alias must exist in the Supabase Edge Functions secret `STRIPE_SECRET_KEYS_JSON`.
+                  </p>
+                </div>
                 <div className="flex gap-2">
                   {editingRiad && (
                     <Button variant="outline" className="flex-1" onClick={() => setEditingRiad(null)}>
@@ -976,6 +1132,17 @@ export default function Admin() {
                           <p className="text-xs text-muted-foreground truncate">
                             {riad.manager_email || 'No email'} • {riad.manager_whatsapp || 'No WhatsApp'}
                           </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <Badge variant={riad.is_active ? 'default' : 'secondary'}>
+                              {riad.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                            <Badge variant={riad.payment_enabled ? 'default' : 'secondary'}>
+                              {riad.payment_enabled ? 'Payments ON' : 'Payments OFF'}
+                            </Badge>
+                            {riad.payment_enabled && riad.stripe_secret_key_alias && (
+                              <Badge variant="outline">{riad.stripe_secret_key_alias}</Badge>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-1">
                           <Button 

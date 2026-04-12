@@ -240,6 +240,140 @@ export type Database = {
           },
         ]
       }
+      reservation_payments: {
+        Row: {
+          amount: number
+          amount_minor: number
+          cloudbeds_error_message: string | null
+          cloudbeds_logged: boolean
+          cloudbeds_logged_at: string | null
+          cloudbeds_payment_method: string
+          cloudbeds_payment_reference: string | null
+          created_at: string
+          created_by: string
+          currency_code: string
+          id: string
+          notes: string | null
+          property_id: string
+          reservation_id: string
+          riad_id: string
+          status: string
+          stripe_payment_intent_id: string | null
+          stripe_payment_method_summary: string | null
+          stripe_secret_key_alias: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          amount_minor: number
+          cloudbeds_error_message?: string | null
+          cloudbeds_logged?: boolean
+          cloudbeds_logged_at?: string | null
+          cloudbeds_payment_method: string
+          cloudbeds_payment_reference?: string | null
+          created_at?: string
+          created_by: string
+          currency_code?: string
+          id?: string
+          notes?: string | null
+          property_id: string
+          reservation_id: string
+          riad_id: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+          stripe_payment_method_summary?: string | null
+          stripe_secret_key_alias: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          amount_minor?: number
+          cloudbeds_error_message?: string | null
+          cloudbeds_logged?: boolean
+          cloudbeds_logged_at?: string | null
+          cloudbeds_payment_method?: string
+          cloudbeds_payment_reference?: string | null
+          created_at?: string
+          created_by?: string
+          currency_code?: string
+          id?: string
+          notes?: string | null
+          property_id?: string
+          reservation_id?: string
+          riad_id?: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+          stripe_payment_method_summary?: string | null
+          stripe_secret_key_alias?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservation_payments_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "reservations"
+            referencedColumns: ["reservation_id"]
+          },
+          {
+            foreignKeyName: "reservation_payments_riad_id_fkey"
+            columns: ["riad_id"]
+            isOneToOne: false
+            referencedRelation: "riads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      riad_payment_settings: {
+        Row: {
+          cloudbeds_payment_description: string | null
+          cloudbeds_payment_method: string | null
+          created_at: string
+          currency_code: string
+          id: string
+          is_enabled: boolean
+          payment_label: string
+          riad_id: string
+          stripe_publishable_key: string | null
+          stripe_secret_key_alias: string | null
+          updated_at: string
+        }
+        Insert: {
+          cloudbeds_payment_description?: string | null
+          cloudbeds_payment_method?: string | null
+          created_at?: string
+          currency_code?: string
+          id?: string
+          is_enabled?: boolean
+          payment_label?: string
+          riad_id: string
+          stripe_publishable_key?: string | null
+          stripe_secret_key_alias?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cloudbeds_payment_description?: string | null
+          cloudbeds_payment_method?: string | null
+          created_at?: string
+          currency_code?: string
+          id?: string
+          is_enabled?: boolean
+          payment_label?: string
+          riad_id?: string
+          stripe_publishable_key?: string | null
+          stripe_secret_key_alias?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "riad_payment_settings_riad_id_fkey"
+            columns: ["riad_id"]
+            isOneToOne: false
+            referencedRelation: "riads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       riad_transport_offers: {
         Row: {
           created_at: string
