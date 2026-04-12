@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
@@ -60,6 +60,18 @@ interface FinalizePaymentResponse {
   currency: string;
 }
 
+const PAYMENT_DRAFT_STORAGE_KEY = 'margo-flow:backoffice-payments:draft';
+
+interface PaymentDraft {
+  selectedRiadId: string;
+  reservationId: string;
+  checkInDate: string | null;
+  reservation: ReservationLookup | null;
+  amountInput: string;
+  clientSecret: string;
+  paymentId: string;
+}
+
 export default function BackofficePayments() {
   const navigate = useNavigate();
   const { user, isLoading: authLoading, isManager, isSuperAdmin, isActive } = useAuth();
@@ -77,6 +89,32 @@ export default function BackofficePayments() {
   const [paymentId, setPaymentId] = useState('');
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [lastSuccess, setLastSuccess] = useState<FinalizePaymentResponse | null>(null);
+  const hasHydratedDraftRef = useRef(false);
+  const previousSelectedRiadIdRef = useRef('');
+
+  useEffect(() => {
+    try {
+      const storedDraft = window.sessionStorage.getItem(PAYMENT_DRAFT_STORAGE_KEY);
+      if (!storedDraft) {
+        hasHydratedDraftRef.current = true;
+        return;
+      }
+
+      const draft = JSON.parse(storedDraft) as Partial<PaymentDraft>;
+      if (draft.selectedRiadId) setSelectedRiadId(draft.selectedRiadId);
+      if (draft.reservationId) setReservationId(draft.reservationId);
+      if (draft.checkInDate) setCheckInDate(parseISO(draft.checkInDate));
+      if (draft.reservation) setReservation(draft.reservation as ReservationLookup);
+      if (draft.amountInput) setAmountInput(draft.amountInput);
+      if (draft.clientSecret) setClientSecret(draft.clientSecret);
+      if (draft.paymentId) setPaymentId(draft.paymentId);
+    } catch (error) {
+      console.error('Failed to restore payment draft:', error);
+      window.sessionStorage.removeItem(PAYMENT_DRAFT_STORAGE_KEY);
+    } finally {
+      hasHydratedDraftRef.current = true;
+    }
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -137,11 +175,18 @@ export default function BackofficePayments() {
 
   useEffect(() => {
     const setting = settings.find((item) => item.riad_id === selectedRiadId);
-    setReservation(null);
-    setAmountInput('');
-    setClientSecret('');
-    setPaymentId('');
-    setLastSuccess(null);
+    const previousSelectedRiadId = previousSelectedRiadIdRef.current;
+    const hasChangedProperty = Boolean(previousSelectedRiadId) && previousSelectedRiadId !== selectedRiadId;
+
+    if (hasChangedProperty) {
+      setReservation(null);
+      setAmountInput('');
+      setClientSecret('');
+      setPaymentId('');
+      setLastSuccess(null);
+    }
+
+    previousSelectedRiadIdRef.current = selectedRiadId;
 
     if (!setting?.stripe_publishable_key) {
       setStripePromise(null);
@@ -150,6 +195,37 @@ export default function BackofficePayments() {
 
     setStripePromise(loadStripe(setting.stripe_publishable_key));
   }, [selectedRiadId, settings]);
+
+  useEffect(() => {
+    if (!hasHydratedDraftRef.current) {
+      return;
+    }
+
+    const draft: PaymentDraft = {
+      selectedRiadId,
+      reservationId,
+      checkInDate: checkInDate ? checkInDate.toISOString() : null,
+      reservation,
+      amountInput,
+      clientSecret,
+      paymentId,
+    };
+
+    const isEmptyDraft = !selectedRiadId
+      && !reservationId
+      && !checkInDate
+      && !reservation
+      && !amountInput
+      && !clientSecret
+      && !paymentId;
+
+    if (isEmptyDraft) {
+      window.sessionStorage.removeItem(PAYMENT_DRAFT_STORAGE_KEY);
+      return;
+    }
+
+    window.sessionStorage.setItem(PAYMENT_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  }, [amountInput, checkInDate, clientSecret, paymentId, reservation, reservationId, selectedRiadId]);
 
   const selectedSetting = useMemo(
     () => settings.find((item) => item.riad_id === selectedRiadId) ?? null,
@@ -296,6 +372,7 @@ export default function BackofficePayments() {
           setClientSecret('');
           setPaymentId('');
           setAmountInput('');
+          window.sessionStorage.removeItem(PAYMENT_DRAFT_STORAGE_KEY);
           toast.success('Payment charged and posted to Cloudbeds');
           return;
         } catch (error) {
@@ -322,6 +399,7 @@ export default function BackofficePayments() {
         setClientSecret('');
         setPaymentId('');
         setAmountInput('');
+        window.sessionStorage.removeItem(PAYMENT_DRAFT_STORAGE_KEY);
         toast.success('Payment charged and posted to Cloudbeds');
         return;
       }
