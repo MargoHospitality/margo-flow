@@ -93,12 +93,17 @@ export async function createStripePaymentIntent(params: {
   currency: string;
   description: string;
   metadata: Record<string, string>;
+  moto?: boolean;
 }) {
   const body = new URLSearchParams();
   body.append("amount", String(params.amountMinor));
   body.append("currency", params.currency.toLowerCase());
   body.append("description", params.description);
   body.append("automatic_payment_methods[enabled]", "true");
+
+  if (params.moto) {
+    body.append("payment_method_options[card][moto]", "true");
+  }
 
   for (const [key, value] of Object.entries(params.metadata)) {
     body.append(`metadata[${key}]`, value);

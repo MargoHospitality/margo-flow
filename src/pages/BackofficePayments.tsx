@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { StripePaymentForm } from '@/components/backoffice/StripePaymentForm';
 import { cn } from '@/lib/utils';
 import margoflowLogo from '@/assets/margoflow-logo.png';
@@ -68,6 +69,7 @@ interface PaymentDraft {
   checkInDate: string | null;
   reservation: ReservationLookup | null;
   amountInput: string;
+  motoEnabled: boolean;
   clientSecret: string;
   paymentId: string;
 }
@@ -82,6 +84,7 @@ export default function BackofficePayments() {
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(undefined);
   const [reservation, setReservation] = useState<ReservationLookup | null>(null);
   const [amountInput, setAmountInput] = useState('');
+  const [motoEnabled, setMotoEnabled] = useState(true);
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [isPreparingPayment, setIsPreparingPayment] = useState(false);
   const [isFinalizingPayment, setIsFinalizingPayment] = useState(false);
@@ -106,6 +109,7 @@ export default function BackofficePayments() {
       if (draft.checkInDate) setCheckInDate(parseISO(draft.checkInDate));
       if (draft.reservation) setReservation(draft.reservation as ReservationLookup);
       if (draft.amountInput) setAmountInput(draft.amountInput);
+      if (typeof draft.motoEnabled === 'boolean') setMotoEnabled(draft.motoEnabled);
       if (draft.clientSecret) setClientSecret(draft.clientSecret);
       if (draft.paymentId) setPaymentId(draft.paymentId);
     } catch (error) {
@@ -207,6 +211,7 @@ export default function BackofficePayments() {
       checkInDate: checkInDate ? checkInDate.toISOString() : null,
       reservation,
       amountInput,
+      motoEnabled,
       clientSecret,
       paymentId,
     };
@@ -216,6 +221,7 @@ export default function BackofficePayments() {
       && !checkInDate
       && !reservation
       && !amountInput
+      && motoEnabled
       && !clientSecret
       && !paymentId;
 
@@ -225,7 +231,7 @@ export default function BackofficePayments() {
     }
 
     window.sessionStorage.setItem(PAYMENT_DRAFT_STORAGE_KEY, JSON.stringify(draft));
-  }, [amountInput, checkInDate, clientSecret, paymentId, reservation, reservationId, selectedRiadId]);
+  }, [amountInput, checkInDate, clientSecret, motoEnabled, paymentId, reservation, reservationId, selectedRiadId]);
 
   const selectedSetting = useMemo(
     () => settings.find((item) => item.riad_id === selectedRiadId) ?? null,
@@ -313,6 +319,7 @@ export default function BackofficePayments() {
             reservation_id: reservation.reservation_id,
             check_in_date: reservation.check_in_date,
             amount: parsedAmount,
+            moto: motoEnabled,
           }),
         },
       );
@@ -570,6 +577,25 @@ export default function BackofficePayments() {
                     />
                     <p className="text-xs text-muted-foreground">
                       This property posts the payment to Cloudbeds with method <strong>{selectedSetting.cloudbeds_payment_method}</strong>.
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-border/60 p-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="moto-mode">MOTO mode</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Enabled by default for remote payments. Disable it when the guest is present and you want a standard 3DS/SCA flow.
+                        </p>
+                      </div>
+                      <Switch
+                        id="moto-mode"
+                        checked={motoEnabled}
+                        onCheckedChange={setMotoEnabled}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Current mode: <strong>{motoEnabled ? 'MOTO' : 'SCA / 3DS'}</strong>
                     </p>
                   </div>
 

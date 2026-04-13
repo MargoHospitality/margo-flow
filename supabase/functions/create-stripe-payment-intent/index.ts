@@ -17,6 +17,7 @@ interface CreatePaymentIntentBody {
   reservation_id?: string;
   check_in_date?: string;
   amount?: number;
+  moto?: boolean;
 }
 
 serve(async (req) => {
@@ -38,6 +39,8 @@ serve(async (req) => {
     if (!Number.isFinite(body.amount) || body.amount <= 0) {
       return jsonResponse({ success: false, error: "Amount must be a positive number" }, 400);
     }
+
+    const moto = body.moto !== false;
 
     const roundedAmount = Number(body.amount.toFixed(2));
     const amountMinor = toMinorAmount(roundedAmount);
@@ -120,12 +123,14 @@ serve(async (req) => {
         amountMinor,
         currency: "mad",
         description,
+        moto,
         metadata: {
           payment_id: paymentRecord.id,
           reservation_id: reservation.reservation_id,
           property_id: reservation.property_id,
           riad_id: paymentSettings.riad_id,
           created_by: user.id,
+          payment_mode: moto ? "moto" : "sca",
         },
       });
 
