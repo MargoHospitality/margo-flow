@@ -84,7 +84,7 @@ export default function BackofficePayments() {
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(undefined);
   const [reservation, setReservation] = useState<ReservationLookup | null>(null);
   const [amountInput, setAmountInput] = useState('');
-  const [motoEnabled, setMotoEnabled] = useState(true);
+  const [motoEnabled, setMotoEnabled] = useState(false);
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [isPreparingPayment, setIsPreparingPayment] = useState(false);
   const [isFinalizingPayment, setIsFinalizingPayment] = useState(false);
@@ -221,7 +221,7 @@ export default function BackofficePayments() {
       && !checkInDate
       && !reservation
       && !amountInput
-      && motoEnabled
+      && !motoEnabled
       && !clientSecret
       && !paymentId;
 
@@ -585,7 +585,7 @@ export default function BackofficePayments() {
                       <div className="space-y-1">
                         <Label htmlFor="moto-mode">MOTO mode</Label>
                         <p className="text-xs text-muted-foreground">
-                          Enabled by default for remote payments. Disable it when the guest is present and you want a standard 3DS/SCA flow.
+                          Enable this only for remote MOTO payments. Leave it off for the standard SCA / 3DS flow.
                         </p>
                       </div>
                       <Switch

@@ -40,7 +40,7 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Amount must be a positive number" }, 400);
     }
 
-    const moto = body.moto !== false;
+    const moto = body.moto === true;
 
     const roundedAmount = Number(body.amount.toFixed(2));
     const amountMinor = toMinorAmount(roundedAmount);
