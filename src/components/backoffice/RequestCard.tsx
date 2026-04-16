@@ -579,6 +579,179 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
 
   const flightTrainNumber = request.payload_details?.flight_number || request.payload_details?.train_number;
 
+  const editPendingDialog = (
+    <Dialog open={isEditPendingDialogOpen} onOpenChange={setIsEditPendingDialogOpen}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{t('edit_pending_request')}</DialogTitle>
+          <DialogDescription>
+            {t('edit_pending_description')}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="pending-transport-date">{t('transport_date')}</Label>
+              <Input
+                id="pending-transport-date"
+                type="date"
+                value={editedPendingDate}
+                onChange={(e) => setEditedPendingDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pending-transport-time">{t('transport_time')}</Label>
+              <Input
+                id="pending-transport-time"
+                type="time"
+                value={editedPendingTime}
+                onChange={(e) => setEditedPendingTime(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="pending-pax">{t('passengers')}</Label>
+            <Input
+              id="pending-pax"
+              type="number"
+              min="1"
+              step="1"
+              value={editedPendingPax}
+              onChange={(e) => setEditedPendingPax(e.target.value)}
+            />
+          </div>
+
+          {editableTransportFields.length > 0 && (
+            <div className="space-y-4 rounded-xl border border-border p-4">
+              <div>
+                <p className="font-medium text-foreground">{offerName}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t('transport_specific_details')}
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {editableTransportFields.map((field) => (
+                  <div
+                    key={field.key}
+                    className={field.type === 'textarea' ? 'space-y-2 md:col-span-2' : 'space-y-2'}
+                  >
+                    <Label htmlFor={`pending-field-${field.key}`}>
+                      {getFieldLabel(field)}
+                      {field.required ? ' *' : ''}
+                    </Label>
+                    {renderPendingFieldInput(field)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between p-4 rounded-xl border border-border">
+            <div className="flex items-center gap-3">
+              <Gift className="h-5 w-5 text-primary" />
+              <div>
+                <Label htmlFor="editFreeTransfer" className="font-medium cursor-pointer">
+                  {t('complimentary_transfer_label')}
+                </Label>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {editedIsFreeTransfer
+                    ? t('complimentary_transfer_hint')
+                    : t('manual_rate_hint')}
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="editFreeTransfer"
+              checked={editedIsFreeTransfer}
+              onCheckedChange={setEditedIsFreeTransfer}
+            />
+          </div>
+
+          <div className={`p-4 rounded-xl border ${editedIsFreeTransfer ? 'bg-status-confirmed/10 border-status-confirmed/30' : 'bg-accent/50 border-border'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <span className="text-sm text-muted-foreground">
+                  {editedIsFreeTransfer ? t('payment_complimentary') : t('recalculated_price')}
+                </span>
+                <div className={`text-2xl font-bold mt-1 ${editedIsFreeTransfer ? 'text-status-confirmed' : 'text-primary'}`}>
+                  {isPricingLoading ? '...' : `${formatAmount(recalculatedPrice)} MAD`}
+                </div>
+              </div>
+              {!editedIsFreeTransfer && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditedComputedPrice(String(recalculatedPrice))}
+                  disabled={isPricingLoading}
+                >
+                  {t('use_suggested_price')}
+                </Button>
+              )}
+            </div>
+            {!editedIsFreeTransfer && transportOfferPricing && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {transportOfferPricing.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="pending-computed-price">{t('rate_label')}</Label>
+            <Input
+              id="pending-computed-price"
+              type="number"
+              min="0"
+              step="0.01"
+              value={editedIsFreeTransfer ? '0' : editedComputedPrice}
+              onChange={(e) => setEditedComputedPrice(e.target.value)}
+              disabled={editedIsFreeTransfer}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="pending-comment">{t('guest_comment_label')}</Label>
+            <Textarea
+              id="pending-comment"
+              value={editedPendingComment}
+              onChange={(e) => setEditedPendingComment(e.target.value)}
+              placeholder={t('guest_comment_placeholder')}
+              className="min-h-[100px]"
+            />
+          </div>
+
+          <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-2">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">{t('reservation_ref')}</span>
+              <span className="font-medium text-right">{request.riad.name} ({request.reservation_id})</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">{t('transport_date')}</span>
+              <span className="font-medium">{editedPendingDate}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">{t('transport_time')}</span>
+              <span className="font-medium">{editedPendingTime}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">{t('passengers')}</span>
+              <span className="font-medium">{normalizedPendingPax || '-'}</span>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsEditPendingDialogOpen(false)}>
+            {t('cancel')}
+          </Button>
+          <Button onClick={handleSaveEditedPending} disabled={isLoading || isPricingLoading}>
+            {isLoading ? <Loader2 className="animate-spin" /> : t('save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   // Compact list view
   if (compact) {
     return (
@@ -738,6 +911,8 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {editPendingDialog}
       </>
     );
   }
@@ -1023,177 +1198,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
         </DialogContent>
       </Dialog>
 
-      {/* Edit Pending Request Dialog */}
-      <Dialog open={isEditPendingDialogOpen} onOpenChange={setIsEditPendingDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('edit_pending_request')}</DialogTitle>
-            <DialogDescription>
-              {t('edit_pending_description')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="pending-transport-date">{t('transport_date')}</Label>
-                <Input
-                  id="pending-transport-date"
-                  type="date"
-                  value={editedPendingDate}
-                  onChange={(e) => setEditedPendingDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pending-transport-time">{t('transport_time')}</Label>
-                <Input
-                  id="pending-transport-time"
-                  type="time"
-                  value={editedPendingTime}
-                  onChange={(e) => setEditedPendingTime(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="pending-pax">{t('passengers')}</Label>
-              <Input
-                id="pending-pax"
-                type="number"
-                min="1"
-                step="1"
-                value={editedPendingPax}
-                onChange={(e) => setEditedPendingPax(e.target.value)}
-              />
-            </div>
-
-            {editableTransportFields.length > 0 && (
-              <div className="space-y-4 rounded-xl border border-border p-4">
-                <div>
-                  <p className="font-medium text-foreground">{offerName}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {t('transport_specific_details')}
-                  </p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {editableTransportFields.map((field) => (
-                    <div
-                      key={field.key}
-                      className={field.type === 'textarea' ? 'space-y-2 md:col-span-2' : 'space-y-2'}
-                    >
-                      <Label htmlFor={`pending-field-${field.key}`}>
-                        {getFieldLabel(field)}
-                        {field.required ? ' *' : ''}
-                      </Label>
-                      {renderPendingFieldInput(field)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between p-4 rounded-xl border border-border">
-              <div className="flex items-center gap-3">
-                <Gift className="h-5 w-5 text-primary" />
-                <div>
-                  <Label htmlFor="editFreeTransfer" className="font-medium cursor-pointer">
-                    {t('complimentary_transfer_label')}
-                  </Label>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    {editedIsFreeTransfer
-                      ? t('complimentary_transfer_hint')
-                      : t('manual_rate_hint')}
-                  </p>
-                </div>
-              </div>
-              <Switch
-                id="editFreeTransfer"
-                checked={editedIsFreeTransfer}
-                onCheckedChange={setEditedIsFreeTransfer}
-              />
-            </div>
-
-            <div className={`p-4 rounded-xl border ${editedIsFreeTransfer ? 'bg-status-confirmed/10 border-status-confirmed/30' : 'bg-accent/50 border-border'}`}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <span className="text-sm text-muted-foreground">
-                    {editedIsFreeTransfer ? t('payment_complimentary') : t('recalculated_price')}
-                  </span>
-                  <div className={`text-2xl font-bold mt-1 ${editedIsFreeTransfer ? 'text-status-confirmed' : 'text-primary'}`}>
-                    {isPricingLoading ? '...' : `${formatAmount(recalculatedPrice)} MAD`}
-                  </div>
-                </div>
-                {!editedIsFreeTransfer && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditedComputedPrice(String(recalculatedPrice))}
-                    disabled={isPricingLoading}
-                  >
-                    {t('use_suggested_price')}
-                  </Button>
-                )}
-              </div>
-              {!editedIsFreeTransfer && transportOfferPricing && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {transportOfferPricing.payment_mode === 'at_riad' ? t('payment_at_riad') : t('payment_to_driver')}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="pending-computed-price">{t('rate_label')}</Label>
-              <Input
-                id="pending-computed-price"
-                type="number"
-                min="0"
-                step="0.01"
-                value={editedIsFreeTransfer ? '0' : editedComputedPrice}
-                onChange={(e) => setEditedComputedPrice(e.target.value)}
-                disabled={editedIsFreeTransfer}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="pending-comment">{t('guest_comment_label')}</Label>
-              <Textarea
-                id="pending-comment"
-                value={editedPendingComment}
-                onChange={(e) => setEditedPendingComment(e.target.value)}
-                placeholder={t('guest_comment_placeholder')}
-                className="min-h-[100px]"
-              />
-            </div>
-
-            <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-2">
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">{t('reservation_ref')}</span>
-                <span className="font-medium text-right">{request.riad.name} ({request.reservation_id})</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">{t('transport_date')}</span>
-                <span className="font-medium">{editedPendingDate}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">{t('transport_time')}</span>
-                <span className="font-medium">{editedPendingTime}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">{t('passengers')}</span>
-                <span className="font-medium">{normalizedPendingPax || '-'}</span>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditPendingDialogOpen(false)}>
-              {t('cancel')}
-            </Button>
-            <Button onClick={handleSaveEditedPending} disabled={isLoading || isPricingLoading}>
-              {isLoading ? <Loader2 className="animate-spin" /> : t('save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {editPendingDialog}
     </>
   );
 }
