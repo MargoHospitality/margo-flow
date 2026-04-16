@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, type ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useLanguage } from '@/hooks/useLanguage';
+import { translations } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
 import { Check, X, Edit2, User, Calendar, Clock, Users, Car, Loader2, Hash, Plane, CreditCard, MessageSquare, Mail, Phone, Ban, Gift } from 'lucide-react';
@@ -39,7 +40,16 @@ interface TransportRequest {
     name: string;
     name_fr: string | null;
     type: string;
+    fields_schema: FieldSchema[];
   };
+}
+
+interface FieldSchema {
+  key: string;
+  label: string;
+  label_fr: string;
+  type: string;
+  required: boolean;
 }
 
 interface RequestCardProps {
@@ -70,7 +80,13 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
   const [cancelReason, setCancelReason] = useState('');
   const [editedTime, setEditedTime] = useState(request.transport_time);
   const [editedFlightNumber, setEditedFlightNumber] = useState(request.payload_details?.flight_number || '');
+  const [editedPendingDate, setEditedPendingDate] = useState(request.transport_date);
+  const [editedPendingTime, setEditedPendingTime] = useState(request.transport_time);
+  const [editedPendingPax, setEditedPendingPax] = useState(String(request.pax));
+  const [editedPendingPayloadDetails, setEditedPendingPayloadDetails] = useState<Record<string, string>>(request.payload_details || {});
+  const [editedPendingComment, setEditedPendingComment] = useState(request.guest_comment || '');
   const [editedIsFreeTransfer, setEditedIsFreeTransfer] = useState(request.is_free_transfer || false);
+  const [editedComputedPrice, setEditedComputedPrice] = useState(String(Number(request.computed_price)));
   const [transportOfferPricing, setTransportOfferPricing] = useState<TransportOfferPricing | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isPricingLoading, setIsPricingLoading] = useState(false);
@@ -81,6 +97,39 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
     rejected: 'bg-destructive/10 text-destructive border-destructive/30',
     cancelled: 'bg-muted text-muted-foreground border-border',
     canceled_due_to_reservation: 'bg-muted text-muted-foreground border-border',
+  };
+
+  const editableTransportFields = request.transport_offer.fields_schema || [];
+  const parsedPendingPax = Number.parseInt(editedPendingPax, 10);
+  const normalizedPendingPax = Number.isNaN(parsedPendingPax) ? 0 : parsedPendingPax;
+  const parsedEditedPrice = Number.parseFloat(editedComputedPrice);
+  const normalizedEditedPrice = Number.isNaN(parsedEditedPrice) ? 0 : parsedEditedPrice;
+
+  const formatAmount = (amount: number) => amount.toFixed(2).replace(/\.00$/, '');
+
+  const getFieldLabel = (field: FieldSchema) => {
+    const dictionary = translations[language] as Record<string, string>;
+    if (dictionary[field.key]) {
+      return dictionary[field.key];
+    }
+    return language === 'fr' ? field.label_fr : field.label;
+  };
+
+  const resetPendingEditor = () => {
+    setEditedPendingDate(request.transport_date);
+    setEditedPendingTime(request.transport_time);
+    setEditedPendingPax(String(request.pax));
+    setEditedPendingPayloadDetails({ ...(request.payload_details || {}) });
+    setEditedPendingComment(request.guest_comment || '');
+    setEditedIsFreeTransfer(request.is_free_transfer || false);
+    setEditedComputedPrice(String(Number(request.computed_price)));
+  };
+
+  const updatePendingPayloadField = (key: string, value: string) => {
+    setEditedPendingPayloadDetails(prev => ({
+      ...prev,
+      [key]: value,
+    }));
   };
 
   const handleConfirm = async () => {
@@ -416,33 +465,60 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
     if (editedIsFreeTransfer) return 0;
     if (!transportOfferPricing) return Number(request.computed_price);
 
-    const timeValue = request.transport_time.replace(':', '');
+    const timeValue = editedPendingTime.replace(':', '');
     const dayStart = transportOfferPricing.day_start_time.replace(':', '');
     const dayEnd = transportOfferPricing.day_end_time.replace(':', '');
 
     const isNight = timeValue < dayStart || timeValue >= dayEnd;
     const basePrice = isNight ? transportOfferPricing.night_price : transportOfferPricing.day_price;
 
-    if (request.pax <= transportOfferPricing.base_pax) {
+    if (normalizedPendingPax <= transportOfferPricing.base_pax) {
       return basePrice;
     }
 
-    const extraPax = request.pax - transportOfferPricing.base_pax;
+    const extraPax = normalizedPendingPax - transportOfferPricing.base_pax;
     return basePrice + extraPax * transportOfferPricing.extra_pax_price;
-  }, [editedIsFreeTransfer, transportOfferPricing, request.transport_time, request.pax, request.computed_price]);
+  }, [editedIsFreeTransfer, transportOfferPricing, editedPendingTime, normalizedPendingPax, request.computed_price]);
 
   // Handle opening edit pending dialog
   const handleOpenEditPending = async () => {
-    setEditedIsFreeTransfer(request.is_free_transfer || false);
+    resetPendingEditor();
     setIsEditPendingDialogOpen(true);
     await fetchTransportOfferPricing();
   };
 
   // Handle saving edited pending request
   const handleSaveEditedPending = async () => {
+    if (!editedPendingDate) {
+      toast.error(t('transport_date'));
+      return;
+    }
+
+    if (!editedPendingTime) {
+      toast.error(t('transport_time'));
+      return;
+    }
+
+    if (normalizedPendingPax < 1) {
+      toast.error(t('min_passengers'));
+      return;
+    }
+
+    for (const field of editableTransportFields) {
+      if (field.required && !editedPendingPayloadDetails[field.key]?.trim()) {
+        toast.error(`${getFieldLabel(field)} ${t('required_field')}`);
+        return;
+      }
+    }
+
+    if (!editedIsFreeTransfer && normalizedEditedPrice < 0) {
+      toast.error(t('error'));
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const newPrice = editedIsFreeTransfer ? 0 : recalculatedPrice;
+      const newPrice = editedIsFreeTransfer ? 0 : normalizedEditedPrice;
       const newPaymentMode: 'at_riad' | 'to_driver' = editedIsFreeTransfer 
         ? 'at_riad' 
         : (transportOfferPricing?.payment_mode || (request.payment_mode as 'at_riad' | 'to_driver'));
@@ -450,9 +526,14 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
       const { error } = await supabase
         .from('transport_requests')
         .update({ 
+          transport_date: editedPendingDate,
+          transport_time: editedPendingTime,
+          pax: normalizedPendingPax,
           is_free_transfer: editedIsFreeTransfer,
           computed_price: newPrice,
-          payment_mode: newPaymentMode
+          payment_mode: newPaymentMode,
+          payload_details: editedPendingPayloadDetails,
+          guest_comment: editedPendingComment.trim() || null,
         })
         .eq('id', request.id);
 
@@ -466,6 +547,29 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const renderPendingFieldInput = (field: FieldSchema) => {
+    const value = editedPendingPayloadDetails[field.key] || '';
+    const commonProps = {
+      id: `pending-field-${field.key}`,
+      value,
+      onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+        updatePendingPayloadField(field.key, e.target.value),
+      placeholder: getFieldLabel(field),
+    };
+
+    if (field.type === 'textarea') {
+      return <Textarea {...commonProps} className="min-h-[90px]" />;
+    }
+
+    return (
+      <Input
+        {...commonProps}
+        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'time' ? 'time' : 'text'}
+        step={field.type === 'number' ? '1' : undefined}
+      />
+    );
   };
 
   const offerName = language === 'fr' && request.transport_offer.name_fr 
@@ -920,7 +1024,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
 
       {/* Edit Pending Request Dialog */}
       <Dialog open={isEditPendingDialogOpen} onOpenChange={setIsEditPendingDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('edit_pending_request')}</DialogTitle>
             <DialogDescription>
@@ -928,7 +1032,64 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Free Transfer Toggle */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="pending-transport-date">{t('transport_date')}</Label>
+                <Input
+                  id="pending-transport-date"
+                  type="date"
+                  value={editedPendingDate}
+                  onChange={(e) => setEditedPendingDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pending-transport-time">{t('transport_time')}</Label>
+                <Input
+                  id="pending-transport-time"
+                  type="time"
+                  value={editedPendingTime}
+                  onChange={(e) => setEditedPendingTime(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pending-pax">{t('passengers')}</Label>
+              <Input
+                id="pending-pax"
+                type="number"
+                min="1"
+                step="1"
+                value={editedPendingPax}
+                onChange={(e) => setEditedPendingPax(e.target.value)}
+              />
+            </div>
+
+            {editableTransportFields.length > 0 && (
+              <div className="space-y-4 rounded-xl border border-border p-4">
+                <div>
+                  <p className="font-medium text-foreground">{offerName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t('transport_specific_details')}
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {editableTransportFields.map((field) => (
+                    <div
+                      key={field.key}
+                      className={field.type === 'textarea' ? 'space-y-2 md:col-span-2' : 'space-y-2'}
+                    >
+                      <Label htmlFor={`pending-field-${field.key}`}>
+                        {getFieldLabel(field)}
+                        {field.required ? ' *' : ''}
+                      </Label>
+                      {renderPendingFieldInput(field)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between p-4 rounded-xl border border-border">
               <div className="flex items-center gap-3">
                 <Gift className="h-5 w-5 text-primary" />
@@ -936,11 +1097,11 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
                   <Label htmlFor="editFreeTransfer" className="font-medium cursor-pointer">
                     {t('complimentary_transfer_label')}
                   </Label>
-                  {!editedIsFreeTransfer && (
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      {t('price_will_be_recalculated')}
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {editedIsFreeTransfer
+                      ? t('complimentary_transfer_hint')
+                      : t('manual_rate_hint')}
+                  </p>
                 </div>
               </div>
               <Switch
@@ -950,18 +1111,26 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
               />
             </div>
 
-            {/* Price Preview */}
             <div className={`p-4 rounded-xl border ${editedIsFreeTransfer ? 'bg-status-confirmed/10 border-status-confirmed/30' : 'bg-accent/50 border-border'}`}>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">
-                  {editedIsFreeTransfer ? t('payment_complimentary') : t('recalculated_price')}
-                </span>
-                {isPricingLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                ) : (
-                  <span className={`text-2xl font-bold ${editedIsFreeTransfer ? 'text-status-confirmed' : 'text-primary'}`}>
-                    {recalculatedPrice.toFixed(0)} MAD
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <span className="text-sm text-muted-foreground">
+                    {editedIsFreeTransfer ? t('payment_complimentary') : t('recalculated_price')}
                   </span>
+                  <div className={`text-2xl font-bold mt-1 ${editedIsFreeTransfer ? 'text-status-confirmed' : 'text-primary'}`}>
+                    {isPricingLoading ? '...' : `${formatAmount(recalculatedPrice)} MAD`}
+                  </div>
+                </div>
+                {!editedIsFreeTransfer && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditedComputedPrice(String(recalculatedPrice))}
+                    disabled={isPricingLoading}
+                  >
+                    {t('use_suggested_price')}
+                  </Button>
                 )}
               </div>
               {!editedIsFreeTransfer && transportOfferPricing && (
@@ -971,15 +1140,46 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
               )}
             </div>
 
-            {/* Request Summary */}
-            <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">{t('passengers')}</span>
-                <span className="font-medium">{request.pax}</span>
+            <div className="space-y-2">
+              <Label htmlFor="pending-computed-price">{t('rate_label')}</Label>
+              <Input
+                id="pending-computed-price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editedIsFreeTransfer ? '0' : editedComputedPrice}
+                onChange={(e) => setEditedComputedPrice(e.target.value)}
+                disabled={editedIsFreeTransfer}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pending-comment">{t('guest_comment_label')}</Label>
+              <Textarea
+                id="pending-comment"
+                value={editedPendingComment}
+                onChange={(e) => setEditedPendingComment(e.target.value)}
+                placeholder={t('guest_comment_placeholder')}
+                className="min-h-[100px]"
+              />
+            </div>
+
+            <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-2">
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">{t('reservation_ref')}</span>
+                <span className="font-medium text-right">{request.riad.name} ({request.reservation_id})</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">{t('transport_date')}</span>
+                <span className="font-medium">{editedPendingDate}</span>
+              </div>
+              <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">{t('transport_time')}</span>
-                <span className="font-medium">{request.transport_time}</span>
+                <span className="font-medium">{editedPendingTime}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">{t('passengers')}</span>
+                <span className="font-medium">{normalizedPendingPax || '-'}</span>
               </div>
             </div>
           </div>

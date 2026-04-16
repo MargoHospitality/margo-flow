@@ -36,7 +36,16 @@ interface TransportRequest {
     name: string;
     name_fr: string | null;
     type: string;
+    fields_schema: FieldSchema[];
   };
+}
+
+interface FieldSchema {
+  key: string;
+  label: string;
+  label_fr: string;
+  type: string;
+  required: boolean;
 }
 
 type MenuTab = 'today' | 'tomorrow' | 'upcoming' | 'pending' | 'all';
@@ -95,7 +104,7 @@ export default function Backoffice() {
           is_free_transfer,
           riad:riads(name),
           reservation:reservations(guest_first_name, guest_last_name, check_in_date),
-          transport_offer:transport_offers(name, name_fr, type)
+          transport_offer:transport_offers(name, name_fr, type, fields_schema)
         `)
         .order('transport_date', { ascending: true })
         .order('transport_time', { ascending: true });
@@ -113,7 +122,7 @@ export default function Backoffice() {
         ...item,
         riad: item.riad as unknown as { name: string },
         reservation: item.reservation as unknown as { guest_first_name: string | null; guest_last_name: string; check_in_date: string },
-        transport_offer: item.transport_offer as unknown as { name: string; name_fr: string | null; type: string },
+        transport_offer: item.transport_offer as unknown as { name: string; name_fr: string | null; type: string; fields_schema: FieldSchema[] },
         payload_details: (item.payload_details || {}) as Record<string, string>,
       }));
 
