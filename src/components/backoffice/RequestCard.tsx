@@ -483,6 +483,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
   // Handle opening edit pending dialog
   const handleOpenEditPending = async () => {
     resetPendingEditor();
+    setIsDetailDialogOpen(false);
     setIsEditPendingDialogOpen(true);
     await fetchTransportOfferPricing();
   };
