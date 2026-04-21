@@ -86,6 +86,22 @@ function uniqueBaseUrls(values: Array<string | null | undefined>): string[] {
   );
 }
 
+function resolveAppRole(roles: Array<{ role: AppRole }> | null | undefined): AppRole | null {
+  if (!roles || roles.length === 0) {
+    return null;
+  }
+
+  if (roles.some(({ role }) => role === "super_admin")) {
+    return "super_admin";
+  }
+
+  if (roles.some(({ role }) => role === "manager")) {
+    return "manager";
+  }
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -133,21 +149,20 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "Authentication failed" }, 401);
     }
 
-    const [{ data: roleData, error: roleError }, requestBody] = await Promise.all([
+    const [{ data: roleRows, error: roleError }, requestBody] = await Promise.all([
       supabaseAdmin
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .in("role", ["manager", "super_admin"])
-        .maybeSingle(),
+        .in("role", ["manager", "super_admin"]),
       req.json() as Promise<ReviewsRequest>,
     ]);
 
-    if (roleError || !roleData?.role) {
+    const role = resolveAppRole((roleRows ?? []) as Array<{ role: AppRole }>);
+
+    if (roleError || !role) {
       return jsonResponse({ success: false, error: "Access denied" }, 403);
     }
-
-    const role = roleData.role as AppRole;
     const selectedRiadIds = normalizeUniqueStrings(requestBody?.riadIds);
     const dateFrom = normalizeOptionalDate(requestBody?.dateFrom);
     const dateTo = normalizeOptionalDate(requestBody?.dateTo);

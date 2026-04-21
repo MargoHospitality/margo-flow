@@ -67,12 +67,18 @@ export function useAuth() {
 
   async function fetchUserData(userId: string) {
     try {
+      const resolveRole = (roles: Array<{ role: UserRole }> | null | undefined): UserRole => {
+        if (!roles || roles.length === 0) return null;
+        if (roles.some(({ role }) => role === 'super_admin')) return 'super_admin';
+        if (roles.some(({ role }) => role === 'manager')) return 'manager';
+        return null;
+      };
+
       // Fetch role
-      const { data: roleData, error: roleError } = await supabase
+      const { data: roleRows, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('user_id', userId)
-        .maybeSingle();
+        .eq('user_id', userId);
 
       if (roleError) console.error('Error fetching user role:', roleError);
 
@@ -95,7 +101,7 @@ export function useAuth() {
 
       setAuthState(prev => ({
         ...prev,
-        role: (roleData?.role as UserRole) ?? 'manager',
+        role: resolveRole((roleRows ?? []) as Array<{ role: UserRole }>) ?? 'manager',
         riadIds: riadsData?.map(r => r.riad_id) ?? [],
         isActive: profileData?.is_active ?? true,
         isLoading: false,
