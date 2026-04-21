@@ -45,5 +45,8 @@ verify_jwt = false
 [functions.export-data]
 verify_jwt = false
 
+[functions.reviews-probe]
+verify_jwt = false
+
 [functions.submit-transport-request]
 verify_jwt = false

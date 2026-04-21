@@ -147,7 +147,7 @@ export default function BackofficeReviews() {
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
           rating: ratingFilter === 'all' ? undefined : Number(ratingFilter),
-          limit: 100,
+          limit: 50,
           offset: 0,
         }),
       });

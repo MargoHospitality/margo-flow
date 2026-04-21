@@ -39,6 +39,12 @@ type GeaReviewItem = {
   createdAt: string;
 };
 
+type GeaPayload = {
+  success?: boolean;
+  data?: { reviews?: GeaReviewItem[] };
+  error?: string;
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -68,6 +74,16 @@ function normalizeOptionalRating(value: unknown): number | null {
   }
 
   return value;
+}
+
+function uniqueBaseUrls(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(
+      values
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+        .map((value) => value.replace(/\/+$/, "")),
+    ),
+  );
 }
 
 Deno.serve(async (req) => {
@@ -227,30 +243,60 @@ Deno.serve(async (req) => {
       searchParams.set("maxRating", String(rating));
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
     try {
-      const geaResponse = await fetch(`${geaBaseUrl}/api/v1/internal/reviews?${searchParams.toString()}`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "X-Margo-Internal-Secret": geaInternalSecret,
-        },
-        signal: controller.signal,
-      });
+      const geaBaseUrls = uniqueBaseUrls([
+        geaBaseUrl,
+        "https://motivated-purpose-production.up.railway.app",
+        "https://gea.margo-hospitality.com",
+      ]);
 
-      const responseText = await geaResponse.text();
-      let geaPayload: { success?: boolean; data?: { reviews?: GeaReviewItem[] }; error?: string } | null = null;
+      let geaPayload: GeaPayload | null = null;
+      let upstreamError: string | null = null;
 
-      try {
-        geaPayload = responseText ? JSON.parse(responseText) : null;
-      } catch (parseError) {
-        console.error("[get-reviews] Failed to parse GEA response:", parseError);
+      for (const candidateBaseUrl of geaBaseUrls) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+        try {
+          const geaResponse = await fetch(`${candidateBaseUrl}/api/v1/internal/reviews?${searchParams.toString()}`, {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+              "X-Margo-Internal-Secret": geaInternalSecret,
+            },
+            signal: controller.signal,
+          });
+
+          const responseText = await geaResponse.text();
+          let parsedPayload: GeaPayload | null = null;
+
+          try {
+            parsedPayload = responseText ? JSON.parse(responseText) : null;
+          } catch (parseError) {
+            upstreamError = `Invalid JSON from ${candidateBaseUrl}`;
+            console.error("[get-reviews] Failed to parse GEA response:", candidateBaseUrl, parseError);
+            continue;
+          }
+
+          if (!geaResponse.ok || !parsedPayload?.success) {
+            upstreamError = parsedPayload?.error ?? `HTTP ${geaResponse.status} from ${candidateBaseUrl}`;
+            console.error("[get-reviews] GEA response error:", candidateBaseUrl, geaResponse.status, parsedPayload?.error ?? responseText);
+            continue;
+          }
+
+          geaPayload = parsedPayload;
+          upstreamError = null;
+          break;
+        } catch (error) {
+          upstreamError = error instanceof Error ? `${candidateBaseUrl}: ${error.name} ${error.message}` : String(error);
+          console.error("[get-reviews] Failed to reach GEA upstream:", candidateBaseUrl, error);
+        } finally {
+          clearTimeout(timeoutId);
+        }
       }
 
-      if (!geaResponse.ok || !geaPayload?.success) {
-        console.error("[get-reviews] GEA response error:", geaResponse.status, geaPayload?.error ?? responseText);
+      if (!geaPayload?.success) {
+        console.error("[get-reviews] All GEA upstreams failed:", upstreamError);
         return jsonResponse({ success: false, error: "Reviews temporarily unavailable" }, 503);
       }
 
@@ -281,8 +327,6 @@ Deno.serve(async (req) => {
     } catch (error) {
       console.error("[get-reviews] Failed to reach GEA:", error);
       return jsonResponse({ success: false, error: "Reviews temporarily unavailable" }, 503);
-    } finally {
-      clearTimeout(timeoutId);
     }
   } catch (error) {
     console.error("[get-reviews] Unexpected error:", error);
