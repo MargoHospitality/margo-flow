@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subDays } from 'date-fns';
 import { AlertCircle, ArrowLeft, CreditCard, Loader2, LogOut, MessageSquareText, RefreshCw, Shield, Star } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -76,16 +76,21 @@ function formatGuest(review: ReviewItem) {
   return 'Unknown guest';
 }
 
+function getDefaultDateFrom() {
+  return format(subDays(new Date(), 2), 'yyyy-MM-dd');
+}
+
 export default function BackofficeReviews() {
   const navigate = useNavigate();
   const { user, isLoading: authLoading, signOut, isManager, isSuperAdmin, isActive } = useAuth();
+  const defaultDateFrom = useMemo(() => getDefaultDateFrom(), []);
   const [properties, setProperties] = useState<ReviewPropertyFilter[]>([]);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [isLoadingProperties, setIsLoadingProperties] = useState(true);
   const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRiadId, setSelectedRiadId] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
+  const [dateFrom, setDateFrom] = useState(defaultDateFrom);
   const [dateTo, setDateTo] = useState('');
   const [ratingFilter, setRatingFilter] = useState('all');
 
@@ -180,7 +185,7 @@ export default function BackofficeReviews() {
     }
   }, [fetchReviews, isActive, isManager, user]);
 
-  const hasActiveFilters = selectedRiadId !== 'all' || Boolean(dateFrom) || Boolean(dateTo) || ratingFilter !== 'all';
+  const hasActiveFilters = selectedRiadId !== 'all' || dateFrom !== defaultDateFrom || Boolean(dateTo) || ratingFilter !== 'all';
 
   const reviewCountLabel = useMemo(() => {
     if (isLoadingReviews) {
@@ -192,7 +197,7 @@ export default function BackofficeReviews() {
 
   const clearFilters = () => {
     setSelectedRiadId('all');
-    setDateFrom('');
+    setDateFrom(getDefaultDateFrom());
     setDateTo('');
     setRatingFilter('all');
   };
@@ -334,6 +339,10 @@ export default function BackofficeReviews() {
                 </Button>
                 <span className="text-sm text-muted-foreground">{reviewCountLabel}</span>
               </div>
+
+              <p className="text-xs text-muted-foreground">
+                Default view shows reviews from the last 3 days. Use the date filters to explore older feedback.
+              </p>
             </CardContent>
           </Card>
 
