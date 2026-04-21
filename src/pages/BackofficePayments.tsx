@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
-import { CalendarIcon, ArrowLeft, CreditCard, Loader2, Search, Shield, BadgeCheck } from 'lucide-react';
+import { CalendarIcon, ArrowLeft, CreditCard, Loader2, Search, Shield, BadgeCheck, MessageSquareText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -462,6 +462,12 @@ export default function BackofficePayments() {
                 </Button>
               </Link>
             )}
+            <Link to="/backoffice/reviews">
+              <Button variant="ghost" size="sm">
+                <MessageSquareText className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Reviews</span>
+              </Button>
+            </Link>
             <Badge variant="outline" className="hidden sm:inline-flex">
               <CreditCard className="mr-2 h-3.5 w-3.5" />
               Payments

@@ -8,6 +8,7 @@ import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
 import Backoffice from "./pages/Backoffice";
 import BackofficePayments from "./pages/BackofficePayments";
+import BackofficeReviews from "./pages/BackofficeReviews";
 import Confirmation from "./pages/Confirmation";
 import Token from "./pages/Token";
 import NotFound from "./pages/NotFound";
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/backoffice" element={<Backoffice />} />
           <Route path="/backoffice/payments" element={<BackofficePayments />} />
+          <Route path="/backoffice/reviews" element={<BackofficeReviews />} />
           <Route path="/confirmation/:token" element={<Confirmation />} />
           <Route path="/token/:token" element={<Token />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
