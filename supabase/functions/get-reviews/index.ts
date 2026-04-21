@@ -102,30 +102,6 @@ function resolveAppRole(roles: Array<{ role: AppRole }> | null | undefined): App
   return null;
 }
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const [, payload] = token.split(".");
-    if (!payload) return null;
-
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-    const decoded = atob(padded);
-    return JSON.parse(decoded) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function getUserIdFromAuthHeader(authHeader: string): string | null {
-  const [scheme, token] = authHeader.split(" ");
-  if (scheme !== "Bearer" || !token) {
-    return null;
-  }
-
-  const payload = decodeJwtPayload(token);
-  return typeof payload?.sub === "string" && payload.sub.length > 0 ? payload.sub : null;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -142,11 +118,12 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const geaBaseUrl = Deno.env.get("GEA_BASE_URL") ?? "https://gea.margo-hospitality.com";
     const geaInternalSecret = Deno.env.get("GEA_INTERNAL_API_SECRET");
 
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
       console.error("[get-reviews] Missing Supabase env config");
       return jsonResponse({ success: false, error: "Server configuration error" }, 500);
     }
@@ -156,12 +133,23 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "Reviews temporarily unavailable" }, 503);
     }
 
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: authHeader },
+      },
+    });
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
-    const userId = getUserIdFromAuthHeader(authHeader);
 
-    if (!userId) {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
       return jsonResponse({ success: false, error: "Authentication failed" }, 401);
     }
+
+    const userId = user.id;
 
     const [{ data: roleRows, error: roleError }, requestBody] = await Promise.all([
       supabaseAdmin
@@ -281,6 +269,7 @@ Deno.serve(async (req) => {
 
       let geaPayload: GeaPayload | null = null;
       let upstreamError: string | null = null;
+      let upstreamFailureCode = "UPSTREAM_UNKNOWN";
 
       for (const candidateBaseUrl of geaBaseUrls) {
         const controller = new AbortController();
@@ -303,12 +292,14 @@ Deno.serve(async (req) => {
             parsedPayload = responseText ? JSON.parse(responseText) : null;
           } catch (parseError) {
             upstreamError = `Invalid JSON from ${candidateBaseUrl}`;
+            upstreamFailureCode = "UPSTREAM_INVALID_JSON";
             console.error("[get-reviews] Failed to parse GEA response:", candidateBaseUrl, parseError);
             continue;
           }
 
           if (!geaResponse.ok || !parsedPayload?.success) {
             upstreamError = parsedPayload?.error ?? `HTTP ${geaResponse.status} from ${candidateBaseUrl}`;
+            upstreamFailureCode = `UPSTREAM_HTTP_${geaResponse.status}`;
             console.error("[get-reviews] GEA response error:", candidateBaseUrl, geaResponse.status, parsedPayload?.error ?? responseText);
             continue;
           }
@@ -318,6 +309,9 @@ Deno.serve(async (req) => {
           break;
         } catch (error) {
           upstreamError = error instanceof Error ? `${candidateBaseUrl}: ${error.name} ${error.message}` : String(error);
+          upstreamFailureCode = error instanceof Error && error.name === "AbortError"
+            ? "UPSTREAM_TIMEOUT"
+            : "UPSTREAM_FETCH_ERROR";
           console.error("[get-reviews] Failed to reach GEA upstream:", candidateBaseUrl, error);
         } finally {
           clearTimeout(timeoutId);
@@ -325,8 +319,8 @@ Deno.serve(async (req) => {
       }
 
       if (!geaPayload?.success) {
-        console.error("[get-reviews] All GEA upstreams failed:", upstreamError);
-        return jsonResponse({ success: false, error: "Reviews temporarily unavailable" }, 503);
+        console.error("[get-reviews] All GEA upstreams failed:", upstreamFailureCode, upstreamError);
+        return jsonResponse({ success: false, error: `Reviews temporarily unavailable (${upstreamFailureCode})` }, 503);
       }
 
       const reviews = (geaPayload.data?.reviews ?? []).map((review) => ({
@@ -355,7 +349,7 @@ Deno.serve(async (req) => {
       });
     } catch (error) {
       console.error("[get-reviews] Failed to reach GEA:", error);
-      return jsonResponse({ success: false, error: "Reviews temporarily unavailable" }, 503);
+      return jsonResponse({ success: false, error: "Reviews temporarily unavailable (SERVER_FETCH_ERROR)" }, 503);
     }
   } catch (error) {
     console.error("[get-reviews] Unexpected error:", error);

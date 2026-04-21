@@ -48,5 +48,8 @@ verify_jwt = false
 [functions.reviews-probe]
 verify_jwt = false
 
+[functions.get-reviews]
+verify_jwt = false
+
 [functions.submit-transport-request]
 verify_jwt = false
