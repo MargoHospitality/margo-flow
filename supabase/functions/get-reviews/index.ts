@@ -102,6 +102,30 @@ function resolveAppRole(roles: Array<{ role: AppRole }> | null | undefined): App
   return null;
 }
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return null;
+
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = atob(padded);
+    return JSON.parse(decoded) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function getUserIdFromAuthHeader(authHeader: string): string | null {
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme !== "Bearer" || !token) {
+    return null;
+  }
+
+  const payload = decodeJwtPayload(token);
+  return typeof payload?.sub === "string" && payload.sub.length > 0 ? payload.sub : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -118,12 +142,11 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const geaBaseUrl = Deno.env.get("GEA_BASE_URL") ?? "https://gea.margo-hospitality.com";
     const geaInternalSecret = Deno.env.get("GEA_INTERNAL_API_SECRET");
 
-    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
       console.error("[get-reviews] Missing Supabase env config");
       return jsonResponse({ success: false, error: "Server configuration error" }, 500);
     }
@@ -133,19 +156,10 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "Reviews temporarily unavailable" }, 503);
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: { Authorization: authHeader },
-      },
-    });
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const userId = getUserIdFromAuthHeader(authHeader);
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
+    if (!userId) {
       return jsonResponse({ success: false, error: "Authentication failed" }, 401);
     }
 
@@ -153,7 +167,7 @@ Deno.serve(async (req) => {
       supabaseAdmin
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .in("role", ["manager", "super_admin"]),
       req.json() as Promise<ReviewsRequest>,
     ]);
@@ -184,7 +198,7 @@ Deno.serve(async (req) => {
       const { data: userRiads, error: userRiadsError } = await supabaseAdmin
         .from("user_riads")
         .select("riad_id")
-        .eq("user_id", user.id);
+        .eq("user_id", userId);
 
       if (userRiadsError) {
         console.error("[get-reviews] Failed to load manager riads:", userRiadsError);
