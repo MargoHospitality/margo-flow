@@ -87,10 +87,11 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const geaBaseUrl = Deno.env.get("GEA_BASE_URL") ?? "https://gea.margo-hospitality.com";
     const geaInternalSecret = Deno.env.get("GEA_INTERNAL_API_SECRET");
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
       console.error("[get-reviews] Missing Supabase env config");
       return jsonResponse({ success: false, error: "Server configuration error" }, 500);
     }
@@ -105,6 +106,7 @@ Deno.serve(async (req) => {
         headers: { Authorization: authHeader },
       },
     });
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     const {
       data: { user },
@@ -116,7 +118,7 @@ Deno.serve(async (req) => {
     }
 
     const [{ data: roleData, error: roleError }, requestBody] = await Promise.all([
-      supabase
+      supabaseAdmin
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
@@ -145,18 +147,47 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "Invalid date range" }, 400);
     }
 
-    let riadsQuery = supabase
+    let allowedRiadIds: string[] | null = null;
+
+    if (role !== "super_admin") {
+      const { data: userRiads, error: userRiadsError } = await supabaseAdmin
+        .from("user_riads")
+        .select("riad_id")
+        .eq("user_id", user.id);
+
+      if (userRiadsError) {
+        console.error("[get-reviews] Failed to load manager riads:", userRiadsError);
+        return jsonResponse({ success: false, error: "Failed to resolve property access" }, 500);
+      }
+
+      allowedRiadIds = (userRiads ?? []).map((item) => item.riad_id);
+
+      if (selectedRiadIds.length > 0) {
+        allowedRiadIds = allowedRiadIds.filter((riadId) => selectedRiadIds.includes(riadId));
+      }
+
+      if (allowedRiadIds.length === 0) {
+        return jsonResponse({
+          success: true,
+          data: {
+            reviews: [],
+          },
+        });
+      }
+    }
+
+    let riadsQuery = supabaseAdmin
       .from("riads")
       .select("id, name, cloudbeds_property_id")
       .not("cloudbeds_property_id", "is", null)
       .order("name", { ascending: true });
 
-    if (role !== "super_admin" && selectedRiadIds.length > 0) {
+    if (role === "super_admin" && selectedRiadIds.length > 0) {
       riadsQuery = riadsQuery.in("id", selectedRiadIds);
     }
 
-    if (role === "super_admin" && selectedRiadIds.length > 0) {
-      riadsQuery = riadsQuery.in("id", selectedRiadIds);
+    if (allowedRiadIds) {
+      riadsQuery = riadsQuery.in("id", allowedRiadIds);
     }
 
     const { data: accessibleRiads, error: riadsError } = await riadsQuery;
