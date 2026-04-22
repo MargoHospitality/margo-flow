@@ -244,68 +244,98 @@ export type Database = {
         Row: {
           amount: number
           amount_minor: number
+          checkout_expires_at: string | null
+          client_whatsapp: string | null
           cloudbeds_error_message: string | null
           cloudbeds_logged: boolean
           cloudbeds_logged_at: string | null
           cloudbeds_payment_method: string
           cloudbeds_payment_reference: string | null
+          last_whatsapp_message_id: string | null
+          link_last_sent_at: string | null
+          link_sent_at: string | null
+          link_sent_count: number
           created_at: string
           created_by: string
           currency_code: string
           id: string
           notes: string | null
+          payment_flow: string
           property_id: string
           reservation_id: string
           riad_id: string
           status: string
+          stripe_checkout_session_id: string | null
+          stripe_checkout_url: string | null
           stripe_payment_intent_id: string | null
           stripe_payment_method_summary: string | null
           stripe_secret_key_alias: string
           updated_at: string
+          whatsapp_error_message: string | null
         }
         Insert: {
           amount: number
           amount_minor: number
+          checkout_expires_at?: string | null
+          client_whatsapp?: string | null
           cloudbeds_error_message?: string | null
           cloudbeds_logged?: boolean
           cloudbeds_logged_at?: string | null
           cloudbeds_payment_method: string
           cloudbeds_payment_reference?: string | null
+          last_whatsapp_message_id?: string | null
+          link_last_sent_at?: string | null
+          link_sent_at?: string | null
+          link_sent_count?: number
           created_at?: string
           created_by: string
           currency_code?: string
           id?: string
           notes?: string | null
+          payment_flow?: string
           property_id: string
           reservation_id: string
           riad_id: string
           status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_checkout_url?: string | null
           stripe_payment_intent_id?: string | null
           stripe_payment_method_summary?: string | null
           stripe_secret_key_alias: string
           updated_at?: string
+          whatsapp_error_message?: string | null
         }
         Update: {
           amount?: number
           amount_minor?: number
+          checkout_expires_at?: string | null
+          client_whatsapp?: string | null
           cloudbeds_error_message?: string | null
           cloudbeds_logged?: boolean
           cloudbeds_logged_at?: string | null
           cloudbeds_payment_method?: string
           cloudbeds_payment_reference?: string | null
+          last_whatsapp_message_id?: string | null
+          link_last_sent_at?: string | null
+          link_sent_at?: string | null
+          link_sent_count?: number
           created_at?: string
           created_by?: string
           currency_code?: string
           id?: string
           notes?: string | null
+          payment_flow?: string
           property_id?: string
           reservation_id?: string
           riad_id?: string
           status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_checkout_url?: string | null
           stripe_payment_intent_id?: string | null
           stripe_payment_method_summary?: string | null
           stripe_secret_key_alias?: string
           updated_at?: string
+          whatsapp_error_message?: string | null
         }
         Relationships: [
           {

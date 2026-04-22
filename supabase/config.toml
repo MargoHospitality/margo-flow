@@ -51,5 +51,17 @@ verify_jwt = false
 [functions.get-reviews]
 verify_jwt = false
 
+[functions.payment-reservation-lookup]
+verify_jwt = false
+
+[functions.create-payment-checkout-link]
+verify_jwt = false
+
+[functions.send-payment-link-whatsapp]
+verify_jwt = false
+
+[functions.stripe-checkout-webhook]
+verify_jwt = false
+
 [functions.submit-transport-request]
 verify_jwt = false

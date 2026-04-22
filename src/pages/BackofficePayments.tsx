@@ -1,20 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
-import { loadStripe, type Stripe } from '@stripe/stripe-js';
-import { CalendarIcon, ArrowLeft, CreditCard, Loader2, Search, Shield, BadgeCheck, MessageSquareText } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  BadgeCheck,
+  CalendarIcon,
+  ExternalLink,
+  Loader2,
+  MessageSquareText,
+  RefreshCw,
+  Search,
+  Send,
+  Shield,
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { StripePaymentForm } from '@/components/backoffice/StripePaymentForm';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import margoflowLogo from '@/assets/margoflow-logo.png';
 import { toast } from 'sonner';
@@ -44,21 +54,39 @@ interface ReservationLookup {
   riad_id: string | null;
 }
 
-interface CreatePaymentIntentResponse {
-  success: boolean;
-  clientSecret: string;
-  paymentId: string;
+interface ExistingPaymentLink {
+  id: string;
   amount: number;
-  currency: string;
+  currency_code: string;
+  status: string;
+  payment_flow: string;
+  stripe_checkout_url: string | null;
+  checkout_expires_at: string | null;
+  client_whatsapp: string | null;
+  link_last_sent_at: string | null;
+  link_sent_count: number;
+  cloudbeds_logged: boolean;
+  created_at: string;
 }
 
-interface FinalizePaymentResponse {
+interface PaymentLookupResponse {
+  success: boolean;
+  data: {
+    reservation: ReservationLookup;
+    guestWhatsapp: string | null;
+    suggestedAmount: number | null;
+    existingPayments: ExistingPaymentLink[];
+  };
+}
+
+interface PaymentLinkResponse {
   success: boolean;
   paymentId: string;
-  paymentIntentId: string;
-  cloudbedsLogged: boolean;
-  amount: number;
-  currency: string;
+  paymentUrl: string;
+  checkoutExpiresAt: string | null;
+  clientWhatsapp: string | null;
+  whatsappSent: boolean;
+  whatsappError?: string | null;
 }
 
 const PAYMENT_DRAFT_STORAGE_KEY = 'margo-flow:backoffice-payments:draft';
@@ -69,9 +97,29 @@ interface PaymentDraft {
   checkInDate: string | null;
   reservation: ReservationLookup | null;
   amountInput: string;
-  motoEnabled: boolean;
-  clientSecret: string;
-  paymentId: string;
+  guestWhatsapp: string;
+}
+
+function isLinkExpired(value: string | null) {
+  return Boolean(value && new Date(value).getTime() <= Date.now());
+}
+
+function canResendLink(payment: ExistingPaymentLink) {
+  if (payment.cloudbeds_logged || payment.status === 'checkout_completed') {
+    return false;
+  }
+
+  return !isLinkExpired(payment.checkout_expires_at);
+}
+
+function formatPaymentStatus(payment: ExistingPaymentLink) {
+  if (payment.cloudbeds_logged) return 'Paid and posted';
+  if (payment.status === 'checkout_completed') return 'Paid';
+  if (payment.status === 'checkout_expired' || isLinkExpired(payment.checkout_expires_at)) return 'Expired';
+  if (payment.status === 'checkout_link_sent') return 'Link sent';
+  if (payment.status === 'checkout_link_created') return 'Link created';
+  if (payment.status === 'checkout_failed') return 'Creation failed';
+  return payment.status.replaceAll('_', ' ');
 }
 
 export default function BackofficePayments() {
@@ -84,14 +132,11 @@ export default function BackofficePayments() {
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(undefined);
   const [reservation, setReservation] = useState<ReservationLookup | null>(null);
   const [amountInput, setAmountInput] = useState('');
-  const [motoEnabled, setMotoEnabled] = useState(false);
+  const [guestWhatsapp, setGuestWhatsapp] = useState('');
+  const [existingPayments, setExistingPayments] = useState<ExistingPaymentLink[]>([]);
   const [isLookingUp, setIsLookingUp] = useState(false);
-  const [isPreparingPayment, setIsPreparingPayment] = useState(false);
-  const [isFinalizingPayment, setIsFinalizingPayment] = useState(false);
-  const [clientSecret, setClientSecret] = useState('');
-  const [paymentId, setPaymentId] = useState('');
-  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
-  const [lastSuccess, setLastSuccess] = useState<FinalizePaymentResponse | null>(null);
+  const [isSendingLink, setIsSendingLink] = useState(false);
+  const [resendingPaymentId, setResendingPaymentId] = useState<string | null>(null);
   const hasHydratedDraftRef = useRef(false);
   const previousSelectedRiadIdRef = useRef('');
 
@@ -109,9 +154,7 @@ export default function BackofficePayments() {
       if (draft.checkInDate) setCheckInDate(parseISO(draft.checkInDate));
       if (draft.reservation) setReservation(draft.reservation as ReservationLookup);
       if (draft.amountInput) setAmountInput(draft.amountInput);
-      if (typeof draft.motoEnabled === 'boolean') setMotoEnabled(draft.motoEnabled);
-      if (draft.clientSecret) setClientSecret(draft.clientSecret);
-      if (draft.paymentId) setPaymentId(draft.paymentId);
+      if (draft.guestWhatsapp) setGuestWhatsapp(draft.guestWhatsapp);
     } catch (error) {
       console.error('Failed to restore payment draft:', error);
       window.sessionStorage.removeItem(PAYMENT_DRAFT_STORAGE_KEY);
@@ -178,27 +221,18 @@ export default function BackofficePayments() {
   }, [fetchPaymentSettings, isActive, isManager, user]);
 
   useEffect(() => {
-    const setting = settings.find((item) => item.riad_id === selectedRiadId);
     const previousSelectedRiadId = previousSelectedRiadIdRef.current;
     const hasChangedProperty = Boolean(previousSelectedRiadId) && previousSelectedRiadId !== selectedRiadId;
 
     if (hasChangedProperty) {
       setReservation(null);
       setAmountInput('');
-      setClientSecret('');
-      setPaymentId('');
-      setLastSuccess(null);
+      setGuestWhatsapp('');
+      setExistingPayments([]);
     }
 
     previousSelectedRiadIdRef.current = selectedRiadId;
-
-    if (!setting?.stripe_publishable_key) {
-      setStripePromise(null);
-      return;
-    }
-
-    setStripePromise(loadStripe(setting.stripe_publishable_key));
-  }, [selectedRiadId, settings]);
+  }, [selectedRiadId]);
 
   useEffect(() => {
     if (!hasHydratedDraftRef.current) {
@@ -211,9 +245,7 @@ export default function BackofficePayments() {
       checkInDate: checkInDate ? checkInDate.toISOString() : null,
       reservation,
       amountInput,
-      motoEnabled,
-      clientSecret,
-      paymentId,
+      guestWhatsapp,
     };
 
     const isEmptyDraft = !selectedRiadId
@@ -221,9 +253,7 @@ export default function BackofficePayments() {
       && !checkInDate
       && !reservation
       && !amountInput
-      && !motoEnabled
-      && !clientSecret
-      && !paymentId;
+      && !guestWhatsapp;
 
     if (isEmptyDraft) {
       window.sessionStorage.removeItem(PAYMENT_DRAFT_STORAGE_KEY);
@@ -231,7 +261,7 @@ export default function BackofficePayments() {
     }
 
     window.sessionStorage.setItem(PAYMENT_DRAFT_STORAGE_KEY, JSON.stringify(draft));
-  }, [amountInput, checkInDate, clientSecret, motoEnabled, paymentId, reservation, reservationId, selectedRiadId]);
+  }, [amountInput, checkInDate, guestWhatsapp, reservation, reservationId, selectedRiadId]);
 
   const selectedSetting = useMemo(
     () => settings.find((item) => item.riad_id === selectedRiadId) ?? null,
@@ -240,180 +270,170 @@ export default function BackofficePayments() {
 
   const parsedAmount = Number.parseFloat(amountInput.replace(',', '.'));
   const amountIsValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
-  const amountLabel = amountIsValid ? `${parsedAmount.toFixed(2)} MAD` : '0.00 MAD';
+  const hasExistingLinks = existingPayments.length > 0;
 
-  async function fetchPaymentStatus(currentPaymentId: string) {
-    const { data, error } = await supabase
-      .from('reservation_payments')
-      .select('id, amount, currency_code, stripe_payment_intent_id, cloudbeds_logged')
-      .eq('id', currentPaymentId)
-      .maybeSingle();
-
-    if (error) {
-      throw error;
+  async function getAccessToken() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Authentication required');
     }
 
-    return data;
+    return session.access_token;
   }
 
-  async function lookupReservation() {
+  async function lookupReservation(options?: { notify?: boolean; applySuggestedAmount?: boolean }) {
     if (!selectedSetting?.riad || !reservationId.trim() || !checkInDate) {
       toast.error('Select a property, reservation ID, and check-in date');
       return;
     }
 
+    const shouldNotify = options?.notify ?? true;
+    const applySuggestedAmount = options?.applySuggestedAmount ?? true;
+
     setIsLookingUp(true);
     try {
+      const token = await getAccessToken();
       const checkInDateIso = format(checkInDate, 'yyyy-MM-dd');
-      const { data, error } = await supabase
-        .from('reservations')
-        .select('reservation_id, guest_first_name, guest_last_name, check_in_date, check_out_date, status, property_id, riad_id')
-        .eq('riad_id', selectedSetting.riad.id)
-        .eq('reservation_id', reservationId.trim())
-        .eq('check_in_date', checkInDateIso)
-        .maybeSingle();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/payment-reservation-lookup`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            riad_id: selectedSetting.riad.id,
+            reservation_id: reservationId.trim(),
+            check_in_date: checkInDateIso,
+          }),
+        },
+      );
 
-      if (error) throw error;
-      if (!data) {
-        toast.error('No reservation found for this property / ID / check-in combination');
-        setReservation(null);
-        return;
+      const result = await response.json() as PaymentLookupResponse & { error?: string };
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to load reservation');
       }
 
-      setReservation(data as ReservationLookup);
-      setClientSecret('');
-      setPaymentId('');
-      setLastSuccess(null);
-      toast.success('Reservation found');
+      setReservation(result.data.reservation);
+      setExistingPayments(result.data.existingPayments ?? []);
+      setGuestWhatsapp(result.data.guestWhatsapp ?? '');
+      if (applySuggestedAmount) {
+        setAmountInput(result.data.suggestedAmount !== null ? result.data.suggestedAmount.toFixed(2) : '');
+      }
+
+      if (shouldNotify) {
+        toast.success('Reservation found');
+      }
     } catch (error) {
       console.error('Reservation lookup failed:', error);
-      toast.error('Failed to load reservation');
+      setReservation(null);
+      setExistingPayments([]);
+      setGuestWhatsapp('');
+      if (shouldNotify) {
+        toast.error(error instanceof Error ? error.message : 'Failed to load reservation');
+      }
     } finally {
       setIsLookingUp(false);
     }
   }
 
-  async function preparePayment() {
-    if (!selectedSetting?.riad || !reservation || !checkInDate || !amountIsValid) {
+  async function createWhatsappPaymentLink() {
+    if (!selectedSetting?.riad || !reservation || !amountIsValid) {
       toast.error('Find a reservation and enter a valid amount first');
       return;
     }
 
-    setIsPreparingPayment(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Authentication required');
-      }
+    if (!guestWhatsapp.trim()) {
+      toast.error('Enter the guest WhatsApp number before sending a payment link');
+      return;
+    }
 
+    setIsSendingLink(true);
+    try {
+      const token = await getAccessToken();
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-stripe-payment-intent`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment-checkout-link`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             riad_id: selectedSetting.riad.id,
             reservation_id: reservation.reservation_id,
             check_in_date: reservation.check_in_date,
             amount: parsedAmount,
-            moto: motoEnabled,
+            client_whatsapp: guestWhatsapp,
+            app_origin: window.location.origin,
           }),
         },
       );
 
-      const result = await response.json();
+      const result = await response.json() as PaymentLinkResponse & { error?: string };
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to prepare payment');
+        throw new Error(result.error || 'Failed to create payment link');
       }
 
-      const payload = result as CreatePaymentIntentResponse;
-      setClientSecret(payload.clientSecret);
-      setPaymentId(payload.paymentId);
-      setLastSuccess(null);
-      toast.success('Payment form ready');
+      setGuestWhatsapp(result.clientWhatsapp ?? guestWhatsapp);
+      await lookupReservation({ notify: false, applySuggestedAmount: false });
+
+      if (result.whatsappSent) {
+        toast.success(hasExistingLinks ? 'Additional payment link sent on WhatsApp' : 'Payment link sent on WhatsApp');
+      } else {
+        toast.error(result.whatsappError || 'Link created but WhatsApp sending failed');
+      }
     } catch (error) {
-      console.error('Payment preparation failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to prepare payment');
+      console.error('Payment link creation failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create payment link');
     } finally {
-      setIsPreparingPayment(false);
+      setIsSendingLink(false);
     }
   }
 
-  async function finalizePayment() {
-    if (!paymentId) {
-      throw new Error('Missing payment reference');
+  async function resendPaymentLink(existingPayment: ExistingPaymentLink) {
+    if (!guestWhatsapp.trim()) {
+      toast.error('Enter the guest WhatsApp number before resending a payment link');
+      return;
     }
 
-    setIsFinalizingPayment(true);
+    setResendingPaymentId(existingPayment.id);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Authentication required');
+      const token = await getAccessToken();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-payment-link-whatsapp`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            payment_id: existingPayment.id,
+            client_whatsapp: guestWhatsapp,
+          }),
+        },
+      );
+
+      const result = await response.json() as PaymentLinkResponse & { error?: string };
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to resend payment link');
       }
 
-      let lastError: Error | null = null;
+      setGuestWhatsapp(result.clientWhatsapp ?? guestWhatsapp);
+      await lookupReservation({ notify: false, applySuggestedAmount: false });
 
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        try {
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/finalize-stripe-payment`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({ payment_id: paymentId }),
-            },
-          );
-
-          const result = await response.json();
-          if (!response.ok || !result.success) {
-            throw new Error(result.error || 'Failed to finalize payment');
-          }
-
-          setLastSuccess(result as FinalizePaymentResponse);
-          setClientSecret('');
-          setPaymentId('');
-          setAmountInput('');
-          window.sessionStorage.removeItem(PAYMENT_DRAFT_STORAGE_KEY);
-          toast.success('Payment charged and posted to Cloudbeds');
-          return;
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error('Failed to finalize payment');
-
-          if (attempt === 0) {
-            await new Promise((resolve) => window.setTimeout(resolve, 1200));
-          }
-        }
+      if (result.whatsappSent) {
+        toast.success('Payment link resent on WhatsApp');
+      } else {
+        toast.error(result.whatsappError || 'Link resend failed');
       }
-
-      const paymentStatus = await fetchPaymentStatus(paymentId);
-      if (paymentStatus?.cloudbeds_logged && paymentStatus.stripe_payment_intent_id) {
-        const recoveredSuccess: FinalizePaymentResponse = {
-          success: true,
-          paymentId: paymentStatus.id,
-          paymentIntentId: paymentStatus.stripe_payment_intent_id,
-          cloudbedsLogged: true,
-          amount: Number(paymentStatus.amount),
-          currency: paymentStatus.currency_code,
-        };
-
-        setLastSuccess(recoveredSuccess);
-        setClientSecret('');
-        setPaymentId('');
-        setAmountInput('');
-        window.sessionStorage.removeItem(PAYMENT_DRAFT_STORAGE_KEY);
-        toast.success('Payment charged and posted to Cloudbeds');
-        return;
-      }
-
-      throw lastError || new Error('Failed to finalize payment');
+    } catch (error) {
+      console.error('Payment link resend failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to resend payment link');
     } finally {
-      setIsFinalizingPayment(false);
+      setResendingPaymentId(null);
     }
   }
 
@@ -469,21 +489,21 @@ export default function BackofficePayments() {
               </Button>
             </Link>
             <Badge variant="outline" className="hidden sm:inline-flex">
-              <CreditCard className="mr-2 h-3.5 w-3.5" />
-              Payments
+              <BadgeCheck className="mr-2 h-3.5 w-3.5" />
+              Payment Links
             </Badge>
           </div>
         </div>
       </header>
 
       <main className="flex-1 container mx-auto px-4 py-6">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
           <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Reservation Lookup</CardTitle>
                 <CardDescription>
-                  Pick a payment-enabled property, then retrieve the reservation already synced from Cloudbeds.
+                  Pick a payment-enabled property, then load the reservation to pull the live balance and guest WhatsApp details from Cloudbeds.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -533,7 +553,7 @@ export default function BackofficePayments() {
                   </div>
                 </div>
 
-                <Button onClick={lookupReservation} disabled={isLookingUp || !selectedRiadId || !reservationId.trim() || !checkInDate}>
+                <Button onClick={() => lookupReservation()} disabled={isLookingUp || !selectedRiadId || !reservationId.trim() || !checkInDate}>
                   {isLookingUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                   Find reservation
                 </Button>
@@ -543,7 +563,7 @@ export default function BackofficePayments() {
             {reservation && selectedSetting?.riad && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Reservation Ready</CardTitle>
+                  <CardTitle>Payment Link Preparation</CardTitle>
                   <CardDescription>
                     {reservation.guest_first_name ? `${reservation.guest_first_name} ` : ''}{reservation.guest_last_name} at {selectedSetting.riad.name}
                   </CardDescription>
@@ -569,45 +589,92 @@ export default function BackofficePayments() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Amount to charge (MAD)</Label>
+                    <Label>Amount to request (MAD)</Label>
                     <Input
                       inputMode="decimal"
                       value={amountInput}
-                      onChange={(event) => {
-                        setAmountInput(event.target.value);
-                        setClientSecret('');
-                        setPaymentId('');
-                        setLastSuccess(null);
-                      }}
+                      onChange={(event) => setAmountInput(event.target.value)}
                       placeholder="0.00"
                     />
                     <p className="text-xs text-muted-foreground">
-                      This property posts the payment to Cloudbeds with method <strong>{selectedSetting.cloudbeds_payment_method}</strong>.
+                      The balance is fetched live from Cloudbeds at lookup time, then stays editable here if the guest wants to split the payment or settle only part of the balance.
                     </p>
                   </div>
 
-                  <div className="rounded-lg border border-border/60 p-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <Label htmlFor="moto-mode">MOTO mode</Label>
-                        <p className="text-xs text-muted-foreground">
-                          Enable this only for remote MOTO payments. Leave it off for the standard SCA / 3DS flow.
+                  <div className="space-y-2">
+                    <Label>Guest WhatsApp</Label>
+                    <Input
+                      value={guestWhatsapp}
+                      onChange={(event) => setGuestWhatsapp(event.target.value)}
+                      placeholder="+212..."
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      We prefill the number we find in Cloudbeds, but the team can adjust it before sending.
+                    </p>
+                  </div>
+
+                  {hasExistingLinks && (
+                    <Alert className="border-amber-200 bg-amber-50/60 text-amber-950 [&>svg]:text-amber-700">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Existing payment links already found</AlertTitle>
+                      <AlertDescription className="space-y-3">
+                        <p>
+                          A link has already been generated for this reservation. You can still send a new one if the guest wants to split the payment across multiple cards.
                         </p>
-                      </div>
-                      <Switch
-                        id="moto-mode"
-                        checked={motoEnabled}
-                        onCheckedChange={setMotoEnabled}
-                      />
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Current mode: <strong>{motoEnabled ? 'MOTO' : 'SCA / 3DS'}</strong>
-                    </p>
-                  </div>
+                        <div className="space-y-2">
+                          {existingPayments.map((payment) => (
+                            <div key={payment.id} className="rounded-md border border-amber-200 bg-white/80 p-3">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="space-y-1 text-sm">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-medium">{Number(payment.amount).toFixed(2)} {payment.currency_code}</span>
+                                    <Badge variant="outline">{formatPaymentStatus(payment)}</Badge>
+                                  </div>
+                                  <p>Created {format(parseISO(payment.created_at), 'PPP p')}</p>
+                                  <p>WhatsApp: {payment.client_whatsapp || '—'}</p>
+                                  <p>Sent count: {payment.link_sent_count}</p>
+                                  {payment.checkout_expires_at && (
+                                    <p>Expires {format(parseISO(payment.checkout_expires_at), 'PPP p')}</p>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {payment.stripe_checkout_url && (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => window.open(payment.stripe_checkout_url!, '_blank', 'noopener,noreferrer')}
+                                    >
+                                      <ExternalLink className="mr-2 h-4 w-4" />
+                                      Open link
+                                    </Button>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={!canResendLink(payment) || resendingPaymentId === payment.id}
+                                    onClick={() => void resendPaymentLink(payment)}
+                                  >
+                                    {resendingPaymentId === payment.id ? (
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <RefreshCw className="mr-2 h-4 w-4" />
+                                    )}
+                                    Resend
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
-                  <Button onClick={preparePayment} disabled={isPreparingPayment || !amountIsValid || !selectedSetting.stripe_publishable_key}>
-                    {isPreparingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                    Prepare secure payment form
+                  <Button onClick={createWhatsappPaymentLink} disabled={isSendingLink || !amountIsValid || !guestWhatsapp.trim()}>
+                    {isSendingLink ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    {hasExistingLinks ? 'Send additional WhatsApp payment link' : 'Send WhatsApp payment link'}
                   </Button>
                 </CardContent>
               </Card>
@@ -617,9 +684,9 @@ export default function BackofficePayments() {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>{selectedSetting?.payment_label || 'Card payment'}</CardTitle>
+                <CardTitle>{selectedSetting?.payment_label || 'Payment links'}</CardTitle>
                 <CardDescription>
-                  Stripe handles the card details. Margo Flow only posts the successful payment to Cloudbeds afterward.
+                  This screen now uses only Stripe Checkout links sent through WhatsApp. Once the guest pays, Margo Flow posts the payment back into Cloudbeds automatically.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -629,47 +696,21 @@ export default function BackofficePayments() {
                   </div>
                 )}
 
-                {!clientSecret || !stripePromise ? (
-                  <div className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
-                    Prepare a payment from the left side to load the Stripe form.
-                  </div>
-                ) : (
-                  <StripePaymentForm
-                    stripePromise={stripePromise}
-                    clientSecret={clientSecret}
-                    amountLabel={amountLabel}
-                    disabled={isFinalizingPayment}
-                    onFinalize={finalizePayment}
-                  />
-                )}
+                <div className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                  After the lookup, adjust the amount if needed, confirm the guest WhatsApp number, then send the Stripe link. Existing links stay visible on the left so the team can resend one or send an additional link for split payments.
+                </div>
 
-                {isFinalizingPayment && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Finalizing payment and posting it to Cloudbeds…
-                  </div>
+                {reservation && (
+                  <Alert className="border-emerald-200 bg-emerald-50/60 text-emerald-950 [&>svg]:text-emerald-700">
+                    <BadgeCheck className="h-4 w-4" />
+                    <AlertTitle>Link-only flow enabled</AlertTitle>
+                    <AlertDescription>
+                      Manual card entry is no longer exposed here. Every payment now starts from a Stripe Checkout link sent to the guest.
+                    </AlertDescription>
+                  </Alert>
                 )}
               </CardContent>
             </Card>
-
-            {lastSuccess && (
-              <Card className="border-emerald-200 bg-emerald-50/60">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-emerald-800">
-                    <BadgeCheck className="h-5 w-5" />
-                    Payment completed
-                  </CardTitle>
-                  <CardDescription className="text-emerald-900/80">
-                    Stripe captured the card payment and Cloudbeds has been updated for the reservation.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm text-emerald-950">
-                  <p><strong>Amount:</strong> {lastSuccess.amount.toFixed(2)} {lastSuccess.currency.toUpperCase()}</p>
-                  <p><strong>Payment Intent:</strong> {lastSuccess.paymentIntentId}</p>
-                  <p><strong>Cloudbeds sync:</strong> {lastSuccess.cloudbedsLogged ? 'Posted' : 'Pending'}</p>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </main>
