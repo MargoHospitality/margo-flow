@@ -314,7 +314,7 @@ function buildReminderEmailHtml(
           <!-- Header with Logo -->
           <tr>
             <td style="background-color: #ffffff; padding: 32px 40px; text-align: center; border-bottom: 1px solid #e5e7eb;">
-              <img src="${logoUrl}" alt="Margo Flow" style="height: 40px; width: auto;" />
+              <img src="${logoUrl}" alt="Margo Flow" width="180" style="display: block; margin: 0 auto; max-width: 180px; height: auto;" />
             </td>
           </tr>
           

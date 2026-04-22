@@ -1,4 +1,5 @@
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const MARGOFLOW_EMAIL_LOGO_URL = "https://flow.margo-hospitality.com/email-assets/margoflow-logo.png";
 
 function assertResendApiKey() {
   if (!RESEND_API_KEY) {
@@ -79,7 +80,7 @@ export async function sendPaymentLinkEmail(params: {
           <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
             <tr>
               <td style="padding:32px 32px 20px 32px;text-align:center;border-bottom:1px solid #e5e7eb;">
-                <h1 style="margin:0;color:#0f4c5c;font-size:28px;font-weight:700;">Margo Flow</h1>
+                <img src="${MARGOFLOW_EMAIL_LOGO_URL}" alt="Margo Flow" width="180" style="display:block;margin:0 auto;max-width:180px;height:auto;" />
               </td>
             </tr>
             <tr>
@@ -144,8 +145,6 @@ export async function sendManagerPaymentConfirmationEmail(params: {
   const backofficeUrl = params.backofficeUrl || "https://flow.margo-hospitality.com/backoffice/payments";
   const methodSummary = params.paymentMethodSummary?.trim() || "Stripe Checkout";
   const cloudbedsReference = params.cloudbedsReference?.trim() || null;
-  const logoUrl = "https://flow.margo-hospitality.com/email-assets/margoflow-logo.png";
-
   const html = `
 <!DOCTYPE html>
 <html>
@@ -161,9 +160,7 @@ export async function sendManagerPaymentConfirmationEmail(params: {
           <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
             <tr>
               <td style="padding:32px 32px 20px 32px;text-align:center;border-bottom:1px solid #e5e7eb;">
-                ${logoUrl
-                  ? `<img src="${logoUrl}" alt="Margo Flow" width="180" style="display:block;margin:0 auto;max-width:180px;height:auto;" />`
-                  : `<h1 style="margin:0;color:#0f4c5c;font-size:28px;font-weight:700;">Margo Flow</h1>`}
+                <img src="${MARGOFLOW_EMAIL_LOGO_URL}" alt="Margo Flow" width="180" style="display:block;margin:0 auto;max-width:180px;height:auto;" />
               </td>
             </tr>
             <tr>

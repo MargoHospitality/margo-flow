@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const MARGOFLOW_EMAIL_LOGO_URL = "https://flow.margo-hospitality.com/email-assets/margoflow-logo.png";
 
 async function sendEmail(to: string[], subject: string, html: string) {
   const res = await fetch("https://api.resend.com/emails", {
@@ -142,8 +143,8 @@ const handler = async (req: Request): Promise<Response> => {
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
           <!-- Header -->
           <tr>
-            <td style="background: linear-gradient(135deg, #0F4C5C 0%, #1a6b7a 100%); padding: 32px 40px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">Margo Flow</h1>
+            <td style="background-color: #ffffff; padding: 32px 40px; text-align: center; border-bottom: 1px solid #e5e7eb;">
+              <img src="${MARGOFLOW_EMAIL_LOGO_URL}" alt="Margo Flow" width="180" style="display: block; margin: 0 auto; max-width: 180px; height: auto;" />
             </td>
           </tr>
           
