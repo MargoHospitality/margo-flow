@@ -159,6 +159,34 @@ function formatPaymentStatus(payment: ExistingPaymentLink) {
   return payment.status.replaceAll('_', ' ');
 }
 
+function getPaymentStatusBadgeClass(payment: { cloudbeds_logged: boolean; status: string; checkout_expires_at: string | null }) {
+  if (payment.cloudbeds_logged) {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  }
+
+  if (payment.status === 'checkout_completed') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  }
+
+  if (payment.status === 'checkout_link_sent') {
+    return 'border-sky-200 bg-sky-50 text-sky-800';
+  }
+
+  if (payment.status === 'checkout_link_created') {
+    return 'border-slate-200 bg-slate-50 text-slate-700';
+  }
+
+  if (payment.status === 'checkout_expired' || isLinkExpired(payment.checkout_expires_at)) {
+    return 'border-amber-200 bg-amber-50 text-amber-800';
+  }
+
+  if (payment.status === 'checkout_failed' || payment.status === 'cloudbeds_failed') {
+    return 'border-rose-200 bg-rose-50 text-rose-800';
+  }
+
+  return 'border-slate-200 bg-slate-50 text-slate-700';
+}
+
 function formatPaymentFlow(paymentFlow: string) {
   if (paymentFlow === 'email_link') return 'Email';
   if (paymentFlow === 'whatsapp_link') return 'WhatsApp';
@@ -821,7 +849,9 @@ export default function BackofficePayments() {
                                 <div className="space-y-1 text-sm">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <span className="font-medium">{Number(payment.amount).toFixed(2)} {payment.currency_code}</span>
-                                    <Badge variant="outline">{formatPaymentStatus(payment)}</Badge>
+                                    <Badge variant="outline" className={getPaymentStatusBadgeClass(payment)}>
+                                      {formatPaymentStatus(payment)}
+                                    </Badge>
                                     <Badge variant="secondary">{formatPaymentFlow(payment.payment_flow)}</Badge>
                                   </div>
                                   <p>Created {format(parseISO(payment.created_at), 'PPP p')}</p>
@@ -958,7 +988,9 @@ export default function BackofficePayments() {
                             <span className="font-medium">
                               {Number(payment.amount).toFixed(2)} {payment.currency_code}
                             </span>
-                            <Badge variant="outline">{formatPaymentStatus(payment)}</Badge>
+                            <Badge variant="outline" className={getPaymentStatusBadgeClass(payment)}>
+                              {formatPaymentStatus(payment)}
+                            </Badge>
                             <Badge variant="secondary">{formatPaymentFlow(payment.payment_flow)}</Badge>
                           </div>
                           <div className="mt-2 space-y-1 text-sm text-muted-foreground">
