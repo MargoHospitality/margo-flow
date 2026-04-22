@@ -711,8 +711,11 @@ export default function BackofficePayments() {
       </header>
 
       <main className="flex-1 container mx-auto px-4 py-6">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-          <div className="space-y-6">
+        <div className={cn(
+          'grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]',
+          reservation && 'lg:items-stretch',
+        )}>
+          <div className={cn('space-y-6', reservation && 'lg:flex lg:h-full lg:flex-col')}>
             <Card>
                 <CardHeader>
                   <CardTitle>Reservation Lookup</CardTitle>
@@ -775,7 +778,7 @@ export default function BackofficePayments() {
             </Card>
 
             {reservation && selectedSetting?.riad && (
-              <Card>
+              <Card className="lg:flex-1">
                 <CardHeader>
                   <CardTitle>Payment Link Preparation</CardTitle>
                   <CardDescription>
@@ -925,7 +928,7 @@ export default function BackofficePayments() {
             )}
           </div>
 
-          <div className="space-y-6">
+          <div className={cn('space-y-6', reservation && 'lg:flex lg:h-full lg:flex-col')}>
             <Card>
               <CardHeader>
                 <CardTitle>{selectedSetting?.payment_label || 'Payment links'}</CardTitle>
@@ -956,7 +959,7 @@ export default function BackofficePayments() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className={cn(reservation && 'lg:flex-1')}>
               <CardHeader className="flex flex-row items-start justify-between space-y-0">
                 <div className="space-y-1">
                   <CardTitle>Latest payment activity</CardTitle>
