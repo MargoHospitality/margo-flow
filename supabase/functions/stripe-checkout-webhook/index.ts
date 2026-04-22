@@ -7,6 +7,7 @@ import {
   syncCloudbedsPayment,
   verifyStripeWebhookSignature,
 } from "../_shared/payment-utils.ts";
+import { sendManagerPaymentConfirmationEmail } from "../_shared/email-utils.ts";
 
 interface StripeEvent {
   id: string;
@@ -95,13 +96,53 @@ serve(async (req) => {
       return jsonResponse({ success: true, pending: true });
     }
 
-    await syncCloudbedsPayment({
+    const syncResult = await syncCloudbedsPayment({
       adminClient,
       paymentRecord: {
         ...paymentRecord,
         stripe_payment_intent_id: paymentIntentId,
       },
     });
+
+    if (!paymentRecord.cloudbeds_logged) {
+      try {
+        const [{ data: riad, error: riadError }, { data: reservation, error: reservationError }] = await Promise.all([
+          adminClient
+            .from("riads")
+            .select("name, manager_email")
+            .eq("id", paymentRecord.riad_id)
+            .maybeSingle(),
+          adminClient
+            .from("reservations")
+            .select("guest_first_name, guest_last_name")
+            .eq("riad_id", paymentRecord.riad_id)
+            .eq("reservation_id", paymentRecord.reservation_id)
+            .maybeSingle(),
+        ]);
+
+        if (riadError) throw riadError;
+        if (reservationError) throw reservationError;
+
+        if (riad?.manager_email) {
+          const guestName = [reservation?.guest_first_name, reservation?.guest_last_name]
+            .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+            .join(" ")
+            || paymentRecord.reservation_id;
+
+          await sendManagerPaymentConfirmationEmail({
+            to: riad.manager_email,
+            propertyName: riad.name || "your property",
+            reservationId: paymentRecord.reservation_id,
+            guestName,
+            amountLabel: `${Number(paymentRecord.amount).toFixed(2)} ${paymentRecord.currency_code.toUpperCase()}`,
+            paymentMethodSummary: null,
+            cloudbedsReference: syncResult.cloudbedsReference,
+          });
+        }
+      } catch (notificationError) {
+        console.error("[stripe-checkout-webhook] Failed to send manager payment confirmation:", notificationError);
+      }
+    }
 
     return jsonResponse({ success: true });
   } catch (error) {
