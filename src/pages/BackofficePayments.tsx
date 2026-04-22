@@ -231,6 +231,7 @@ export default function BackofficePayments() {
   const [isSendingLink, setIsSendingLink] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [resendingPaymentId, setResendingPaymentId] = useState<string | null>(null);
+  const [showAllRecentPayments, setShowAllRecentPayments] = useState(false);
   const hasHydratedDraftRef = useRef(false);
   const previousSelectedRiadIdRef = useRef('');
 
@@ -369,6 +370,7 @@ export default function BackofficePayments() {
   const parsedAmount = Number.parseFloat(amountInput.replace(',', '.'));
   const amountIsValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
   const hasExistingLinks = existingPayments.length > 0;
+  const visibleRecentPayments = showAllRecentPayments ? recentPayments : recentPayments.slice(0, 3);
 
   async function getAccessToken() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -429,6 +431,10 @@ export default function BackofficePayments() {
       void fetchRecentPayments();
     }
   }, [fetchRecentPayments, isActive, isManager, user]);
+
+  useEffect(() => {
+    setShowAllRecentPayments(false);
+  }, [selectedRiadId]);
 
   async function lookupReservation(options?: { notify?: boolean; applySuggestedAmount?: boolean }) {
     if (!selectedSetting?.riad || !reservationId.trim() || !checkInDate) {
@@ -955,7 +961,7 @@ export default function BackofficePayments() {
                 <div className="space-y-1">
                   <CardTitle>Latest payment activity</CardTitle>
                   <CardDescription>
-                    The 10 most recent payment entries {selectedSetting?.riad ? `for ${selectedSetting.riad.name}` : 'across your accessible properties'}.
+                    Showing the latest {Math.min(3, recentPayments.length || 3)} entries {selectedSetting?.riad ? `for ${selectedSetting.riad.name}` : 'across your accessible properties'}.
                   </CardDescription>
                 </div>
                 <Button
@@ -980,7 +986,7 @@ export default function BackofficePayments() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {recentPayments.map((payment) => {
+                    {visibleRecentPayments.map((payment) => {
                       const riad = getRelationValue(payment.riads);
                       return (
                         <div key={payment.id} className="rounded-lg border border-border/60 p-3">
@@ -1004,6 +1010,16 @@ export default function BackofficePayments() {
                         </div>
                       );
                     })}
+                    {recentPayments.length > 3 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setShowAllRecentPayments((current) => !current)}
+                      >
+                        {showAllRecentPayments ? 'Show fewer transactions' : `Show all ${recentPayments.length} transactions`}
+                      </Button>
+                    )}
                   </div>
                 )}
               </CardContent>
