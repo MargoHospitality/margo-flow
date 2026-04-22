@@ -29,7 +29,7 @@ export default function PaymentCheckoutStatus() {
         <CardContent className="space-y-4 text-sm text-muted-foreground">
           <p>
             {isSuccess
-              ? 'If you need help, reply to the WhatsApp conversation and the property team will assist you.'
+              ? 'If you need any assistance, please contact the property team.'
               : 'If the link has expired, the property team can generate a new one for you.'}
           </p>
           <Button asChild className="w-full">
