@@ -28,6 +28,7 @@ type ReservationRow = {
   check_out_date: string | null;
   source: string | null;
   status: string;
+  cloudbeds_raw: Record<string, unknown> | null;
 };
 
 type TransportRequestRow = {
@@ -39,6 +40,7 @@ type TransportRequestRow = {
   pax: number;
   guest_comment: string | null;
   payload_details: Record<string, unknown> | null;
+  is_free_transfer: boolean;
   created_at: string;
   updated_at: string;
   transport_offer?: {
@@ -67,8 +69,160 @@ type CheckinResponseRow = {
   cloudbeds_sync_error: string | null;
 };
 
-function normalizeSource(rawSource: string | null | undefined) {
-  const value = rawSource?.trim();
+function pickFirstString(values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function parseCheckinGuests(rawGuests: unknown): Array<Record<string, unknown>> {
+  let parsed = rawGuests;
+
+  if (typeof rawGuests === "string") {
+    try {
+      parsed = JSON.parse(rawGuests);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed.filter((guest): guest is Record<string, unknown> => Boolean(guest && typeof guest === "object"));
+}
+
+function extractGuestList(rawReservation: Record<string, unknown> | null | undefined) {
+  if (!rawReservation) return [];
+
+  const guestList = rawReservation.guestList;
+  if (Array.isArray(guestList)) {
+    return guestList.filter((guest): guest is Record<string, unknown> => Boolean(guest && typeof guest === "object"));
+  }
+
+  if (guestList && typeof guestList === "object") {
+    return Object.values(guestList).filter((guest): guest is Record<string, unknown> => Boolean(guest && typeof guest === "object"));
+  }
+
+  return [];
+}
+
+function extractMainGuest(rawReservation: Record<string, unknown> | null | undefined) {
+  const guests = extractGuestList(rawReservation);
+  return guests.find((guest) => guest.isMainGuest === true) ?? guests[0] ?? null;
+}
+
+function extractGuestPhone(rawReservation: Record<string, unknown> | null | undefined, checkinGuests: Array<Record<string, unknown>>) {
+  const mainGuest = extractMainGuest(rawReservation);
+  const submittedPrimaryGuest = checkinGuests[0] ?? null;
+
+  return pickFirstString([
+    mainGuest?.guestPhone,
+    mainGuest?.guestCellPhone,
+    mainGuest?.guestMobile,
+    mainGuest?.phone,
+    mainGuest?.mobile,
+    submittedPrimaryGuest?.phone,
+    rawReservation?.guestPhone,
+    rawReservation?.guestMobile,
+    rawReservation?.phone,
+    rawReservation?.mobile,
+  ]);
+}
+
+function extractGuestCount(rawReservation: Record<string, unknown> | null | undefined, checkinGuests: Array<Record<string, unknown>>) {
+  const assigned = rawReservation?.assigned;
+  if (Array.isArray(assigned) && assigned.length > 0) {
+    const totalAdults = assigned.reduce((sum, room) => {
+      if (!room || typeof room !== "object") return sum;
+      const value = (room as Record<string, unknown>).adults;
+      const parsed = typeof value === "string" ? Number.parseInt(value, 10) : typeof value === "number" ? value : 0;
+      return sum + (Number.isFinite(parsed) ? parsed : 0);
+    }, 0);
+
+    if (totalAdults > 0) {
+      return totalAdults;
+    }
+  }
+
+  const rootAdults = rawReservation?.adults;
+  if (typeof rootAdults === "number" && Number.isFinite(rootAdults) && rootAdults > 0) {
+    return rootAdults;
+  }
+  if (typeof rootAdults === "string") {
+    const parsedAdults = Number.parseInt(rootAdults, 10);
+    if (Number.isFinite(parsedAdults) && parsedAdults > 0) {
+      return parsedAdults;
+    }
+  }
+
+  const rawGuestList = extractGuestList(rawReservation);
+  if (rawGuestList.length > 0) {
+    return rawGuestList.length;
+  }
+
+  return checkinGuests.length;
+}
+
+function extractRoomNames(rawReservation: Record<string, unknown> | null | undefined) {
+  const names = new Set<string>();
+  const assigned = rawReservation?.assigned;
+
+  if (Array.isArray(assigned)) {
+    for (const room of assigned) {
+      if (!room || typeof room !== "object") continue;
+      const roomRecord = room as Record<string, unknown>;
+      const label = pickFirstString([
+        roomRecord.roomName,
+        roomRecord.roomTypeName,
+        roomRecord.roomType,
+        roomRecord.room_type_name,
+        roomRecord.unitName,
+        roomRecord.name,
+      ]);
+
+      if (label) {
+        names.add(label);
+      }
+    }
+  }
+
+  const fallback = pickFirstString([
+    rawReservation?.roomName,
+    rawReservation?.roomTypeName,
+    rawReservation?.roomType,
+    rawReservation?.unitName,
+  ]);
+
+  if (fallback) {
+    names.add(fallback);
+  }
+
+  return Array.from(names);
+}
+
+function extractSourceCandidate(rawReservation: Record<string, unknown> | null | undefined, rawSource: string | null | undefined) {
+  return pickFirstString([
+    rawReservation?.thirdPartySource,
+    rawReservation?.third_party_source,
+    rawReservation?.subSource,
+    rawReservation?.sub_source,
+    rawReservation?.sourceName,
+    rawReservation?.channelName,
+    rawReservation?.bookingSource,
+    rawReservation?.booking_source,
+    rawReservation?.source,
+    rawSource,
+  ]);
+}
+
+function normalizeSource(rawSource: string | null | undefined, rawReservation: Record<string, unknown> | null | undefined) {
+  const value = extractSourceCandidate(rawReservation, rawSource);
   const lower = value?.toLowerCase() ?? "";
 
   if (!value) {
@@ -87,8 +241,8 @@ function normalizeSource(rawSource: string | null | undefined) {
     return { sourceKey: "expedia", sourceLabel: "Expedia", sourceRaw: value };
   }
 
-  if (lower.includes("direct") || lower.includes("website") || lower.includes("walk")) {
-    return { sourceKey: "direct", sourceLabel: "Direct", sourceRaw: value };
+  if (lower.includes("direct") || lower.includes("website") || lower.includes("walk") || lower.includes("net affinity")) {
+    return { sourceKey: "direct", sourceLabel: "Direct Booking", sourceRaw: value };
   }
 
   return { sourceKey: "other", sourceLabel: value, sourceRaw: value };
@@ -201,7 +355,7 @@ Deno.serve(async (req) => {
 
     let reservationsQuery = supabaseAdmin
       .from("reservations")
-      .select("reservation_id, riad_id, property_id, guest_first_name, guest_last_name, guest_country_code, check_in_date, check_out_date, source, status")
+        .select("reservation_id, riad_id, property_id, guest_first_name, guest_last_name, guest_country_code, check_in_date, check_out_date, source, status, cloudbeds_raw")
       .in("riad_id", accessibleRiadIds);
 
     if (reservationIdFilter) {
@@ -239,7 +393,7 @@ Deno.serve(async (req) => {
     const [{ data: transportRows, error: transportError }, { data: checkinRows, error: checkinError }] = await Promise.all([
       supabaseAdmin
         .from("transport_requests")
-        .select("id, reservation_id, status, transport_date, transport_time, pax, guest_comment, payload_details, created_at, updated_at, transport_offer:transport_offers(name, type)")
+        .select("id, reservation_id, status, transport_date, transport_time, pax, guest_comment, payload_details, is_free_transfer, created_at, updated_at, transport_offer:transport_offers(name, type)")
         .in("reservation_id", reservationIds),
       supabaseAdmin
         .from("checkin_responses")
@@ -270,13 +424,17 @@ Deno.serve(async (req) => {
 
     const arrivals = reservations
       .map((reservation) => {
-        const source = normalizeSource(reservation.source);
         const transportRowsForReservation = transportByReservationId.get(reservation.reservation_id) ?? [];
         const { transportStatus, activeTransport } = pickTransportSummary(transportRowsForReservation);
         const checkin = checkinByReservationId.get(reservation.reservation_id) ?? null;
+        const parsedCheckinGuests = parseCheckinGuests(checkin?.guests ?? null);
+        const source = normalizeSource(reservation.source, reservation.cloudbeds_raw);
         const checkinStatus = checkin?.completed_at ? "completed" : "not_yet";
         const propertyName = reservation.riad_id ? propertyNameByRiadId.get(reservation.riad_id) ?? "Property unavailable" : "Property unavailable";
         const activeTransportOffer = getRelationValue(activeTransport?.transport_offer);
+        const guestPhone = extractGuestPhone(reservation.cloudbeds_raw, parsedCheckinGuests);
+        const guestCount = extractGuestCount(reservation.cloudbeds_raw, parsedCheckinGuests);
+        const roomNames = extractRoomNames(reservation.cloudbeds_raw);
 
         return {
           reservationId: reservation.reservation_id,
@@ -287,9 +445,12 @@ Deno.serve(async (req) => {
           guestFirstName: reservation.guest_first_name,
           guestLastName: reservation.guest_last_name,
           guestCountryCode: reservation.guest_country_code,
+          guestPhone,
           checkInDate: reservation.check_in_date,
           checkOutDate: reservation.check_out_date,
           reservationStatus: reservation.status,
+          guestCount,
+          roomNames,
           sourceKey: source.sourceKey,
           sourceLabel: source.sourceLabel,
           sourceRaw: source.sourceRaw,
@@ -302,9 +463,11 @@ Deno.serve(async (req) => {
             date: activeTransport.transport_date,
             time: activeTransport.transport_time,
             pax: activeTransport.pax,
+            isComplimentary: activeTransport.is_free_transfer ?? false,
             guestComment: activeTransport.guest_comment,
             offerName: activeTransportOffer?.name ?? null,
             offerType: activeTransportOffer?.type ?? null,
+            payloadDetails: activeTransport.payload_details ?? null,
           } : null,
           checkin: checkin ? {
             completedAt: checkin.completed_at,
@@ -315,7 +478,7 @@ Deno.serve(async (req) => {
             transportMethod: checkin.transport_method,
             transportDetails: checkin.transport_details,
             arrivalTime: checkin.arrival_time,
-            guests: Array.isArray(checkin.guests) ? checkin.guests : [],
+            guests: parsedCheckinGuests,
             restaurationPreferences: checkin.restauration_preferences,
             beddingPreferences: checkin.bedding_preferences,
             beddingDetails: checkin.bedding_details,
@@ -342,6 +505,7 @@ Deno.serve(async (req) => {
             arrival.propertyName,
             arrival.reservationId,
             arrival.sourceLabel,
+            arrival.roomNames.join(" "),
           ].join(" ").toLowerCase();
 
           if (!haystack.includes(search)) {

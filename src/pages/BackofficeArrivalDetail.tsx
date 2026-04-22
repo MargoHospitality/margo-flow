@@ -11,6 +11,7 @@ import {
   Hotel,
   Loader2,
   LogOut,
+  MessageCircle,
   MessageSquareText,
   Plane,
   Shield,
@@ -47,6 +48,24 @@ function getGuestIdentity(guest: Record<string, unknown>) {
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
     || 'Guest';
+}
+
+function getTransportFieldLabel(key: string) {
+  if (key === 'flight_number') return 'Flight ID';
+  if (key === 'train_number') return 'Train ID';
+  if (key === 'hotel_name') return 'Hotel';
+  if (key === 'hotel_address') return 'Hotel address';
+  if (key === 'bus_company') return 'Bus company';
+  if (key === 'arrival_time') return 'Arrival time';
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function buildWhatsappUrl(phone: string | null) {
+  if (!phone) return null;
+  const normalized = phone.replace(/[^\d+]/g, '');
+  const digitsOnly = normalized.replace(/\D/g, '');
+  if (!digitsOnly) return null;
+  return `https://wa.me/${digitsOnly}`;
 }
 
 export default function BackofficeArrivalDetail() {
@@ -204,14 +223,28 @@ export default function BackofficeArrivalDetail() {
           </Card>
         ) : (() => {
           const SourceIcon = getSourceIcon(arrival.sourceKey);
+          const whatsappUrl = buildWhatsappUrl(arrival.guestPhone);
+          const transportDetailEntries = Object.entries(arrival.transport?.payloadDetails ?? {})
+            .filter(([key, value]) => !['guest_email', 'guest_whatsapp'].includes(key) && value !== null && value !== undefined && `${value}`.trim().length > 0);
+
           return (
             <>
               <Card>
-                <CardHeader>
-                  <CardTitle>{arrival.guestName}</CardTitle>
-                  <CardDescription>
-                    {arrival.propertyName} • {arrival.reservationId}
-                  </CardDescription>
+                <CardHeader className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <CardTitle>{arrival.guestName}</CardTitle>
+                    <CardDescription>
+                      {arrival.propertyName} • {arrival.reservationId}
+                    </CardDescription>
+                  </div>
+                  {whatsappUrl && (
+                    <Button asChild className="bg-[#25D366] text-white hover:bg-[#1ebe5b]">
+                      <a href={whatsappUrl} target="_blank" rel="noreferrer">
+                        <MessageCircle className="mr-2 h-4 w-4" />
+                        Contact guest on WhatsApp
+                      </a>
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-wrap gap-2">
@@ -223,13 +256,18 @@ export default function BackofficeArrivalDetail() {
                       <CarFront className="mr-2 h-3.5 w-3.5" />
                       {getTransportLabel(arrival.transportStatus)}
                     </Badge>
+                    {arrival.transport?.isComplimentary && (
+                      <Badge variant="outline" className="border-cyan-200 bg-cyan-50 text-cyan-800">
+                        Complimentary
+                      </Badge>
+                    )}
                     <Badge variant="outline" className={getCheckinBadgeClass(arrival.checkinStatus)}>
                       <UserCheck className="mr-2 h-3.5 w-3.5" />
                       {getCheckinLabel(arrival.checkinStatus)}
                     </Badge>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     <div className="rounded-lg border border-border/60 p-3">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Check-in</p>
                       <p className="font-medium">{format(parseISO(arrival.checkInDate), 'PPP')}</p>
@@ -246,7 +284,21 @@ export default function BackofficeArrivalDetail() {
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Guest country</p>
                       <p className="font-medium">{arrival.guestCountryCode || '—'}</p>
                     </div>
+                    <div className="rounded-lg border border-border/60 p-3">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Guests</p>
+                      <p className="font-medium">{arrival.guestCount}</p>
+                    </div>
                   </div>
+
+                  {arrival.roomNames.length > 0 && (
+                    <div className="rounded-lg border border-border/60 p-3">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Rooms</p>
+                      <div className="mt-1 flex items-center gap-2 font-medium">
+                        <BedDouble className="h-4 w-4 text-muted-foreground" />
+                        <span>{arrival.roomNames.join(' • ')}</span>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -316,6 +368,19 @@ export default function BackofficeArrivalDetail() {
                           </div>
                         </div>
 
+                        {arrival.transportStatus === 'none' && (arrival.checkin.transportMethod || arrival.checkin.transportDetails) && (
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div className="rounded-lg border border-border/60 p-3">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Alternative transport</p>
+                              <p className="font-medium">{arrival.checkin.transportMethod || '—'}</p>
+                            </div>
+                            <div className="rounded-lg border border-border/60 p-3">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Comment</p>
+                              <p className="font-medium">{arrival.checkin.transportDetails || '—'}</p>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="rounded-lg border border-border/60 p-3">
                           <p className="text-xs uppercase tracking-wide text-muted-foreground">Other requests</p>
                           <p className="font-medium">{arrival.checkin.otherRequests || '—'}</p>
@@ -356,6 +421,12 @@ export default function BackofficeArrivalDetail() {
                               <p className="text-xs uppercase tracking-wide text-muted-foreground">Offer</p>
                               <p className="font-medium">{arrival.transport.offerName || 'Transport request'}</p>
                             </div>
+                            {arrival.transport.isComplimentary && (
+                              <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3">
+                                <p className="text-xs uppercase tracking-wide text-cyan-700">Rate</p>
+                                <p className="font-medium text-cyan-900">Complimentary</p>
+                              </div>
+                            )}
                             <div className="rounded-lg border border-border/60 p-3">
                               <p className="text-xs uppercase tracking-wide text-muted-foreground">Transport time</p>
                               <p className="font-medium">{arrival.transport.time}</p>
@@ -365,6 +436,17 @@ export default function BackofficeArrivalDetail() {
                               <p className="font-medium">{arrival.transport.pax}</p>
                             </div>
                           </div>
+
+                          {transportDetailEntries.length > 0 && (
+                            <div className="grid gap-3 md:grid-cols-2">
+                              {transportDetailEntries.map(([key, value]) => (
+                                <div key={key} className="rounded-lg border border-border/60 p-3">
+                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{getTransportFieldLabel(key)}</p>
+                                  <p className="font-medium">{String(value)}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
                           <div className="rounded-lg border border-border/60 p-3">
                             <p className="text-xs uppercase tracking-wide text-muted-foreground">Guest comment</p>
@@ -378,26 +460,6 @@ export default function BackofficeArrivalDetail() {
                           </Link>
                         </>
                       )}
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Operational summary</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Source</span>
-                        <span className="font-medium">{arrival.sourceLabel}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Digital check-in</span>
-                        <span className="font-medium">{getCheckinLabel(arrival.checkinStatus)}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Transport</span>
-                        <span className="font-medium">{getTransportLabel(arrival.transportStatus)}</span>
-                      </div>
                     </CardContent>
                   </Card>
                 </div>

@@ -18,14 +18,18 @@ export type ArrivalTransportSummary = {
   date: string;
   time: string;
   pax: number;
+  isComplimentary: boolean;
   guestComment: string | null;
   offerName: string | null;
   offerType: string | null;
+  payloadDetails: Record<string, unknown> | null;
 } | null;
 
 export type ArrivalCheckinGuest = {
   firstName?: string | null;
   lastName?: string | null;
+  email?: string | null;
+  phone?: string | null;
   nationality?: string | null;
   passportNumber?: string | null;
 };
@@ -55,9 +59,12 @@ export type ArrivalRecord = {
   guestFirstName: string | null;
   guestLastName: string;
   guestCountryCode: string | null;
+  guestPhone: string | null;
   checkInDate: string;
   checkOutDate: string | null;
   reservationStatus: string;
+  guestCount: number;
+  roomNames: string[];
   sourceKey: ArrivalSourceKey;
   sourceLabel: string;
   sourceRaw: string | null;

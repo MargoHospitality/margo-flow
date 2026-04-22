@@ -432,11 +432,23 @@ export default function BackofficeArrivals() {
                               <CarFront className="mr-2 h-3.5 w-3.5" />
                               {getTransportLabel(arrival.transportStatus)}
                             </Badge>
+                            {arrival.transport?.isComplimentary && (
+                              <Badge variant="outline" className="border-cyan-200 bg-cyan-50 text-cyan-800">
+                                Complimentary
+                              </Badge>
+                            )}
                             <Badge variant="outline" className={getCheckinBadgeClass(arrival.checkinStatus)}>
                               <UserCheck className="mr-2 h-3.5 w-3.5" />
                               {getCheckinLabel(arrival.checkinStatus)}
                             </Badge>
                           </div>
+
+                          {arrival.roomNames.length > 0 && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <BedDouble className="h-4 w-4" />
+                              <span>{arrival.roomNames.join(' • ')}</span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[360px]">
@@ -450,7 +462,7 @@ export default function BackofficeArrivals() {
                           </div>
                           <div className="rounded-lg border border-border/60 px-4 py-3">
                             <p className="text-xs uppercase tracking-wide text-muted-foreground">Guests</p>
-                            <p className="mt-1 font-medium">{arrival.checkin?.guests?.length || 0}</p>
+                            <p className="mt-1 font-medium">{arrival.guestCount}</p>
                           </div>
                         </div>
                       </div>
