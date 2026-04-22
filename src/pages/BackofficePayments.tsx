@@ -70,6 +70,37 @@ interface ExistingPaymentLink {
   created_at: string;
 }
 
+interface RecentPaymentActivity {
+  id: string;
+  amount: number;
+  currency_code: string;
+  reservation_id: string;
+  status: string;
+  payment_flow: string;
+  checkout_expires_at: string | null;
+  cloudbeds_logged: boolean;
+  created_at: string;
+  stripe_payment_method_summary: string | null;
+  riads:
+    | {
+        name: string;
+      }
+    | {
+        name: string;
+      }[]
+    | null;
+  reservations:
+    | {
+        guest_first_name: string | null;
+        guest_last_name: string;
+      }
+    | {
+        guest_first_name: string | null;
+        guest_last_name: string;
+      }[]
+    | null;
+}
+
 interface PaymentLookupResponse {
   success: boolean;
   data: {
@@ -134,6 +165,25 @@ function formatPaymentFlow(paymentFlow: string) {
   return paymentFlow.replaceAll('_', ' ');
 }
 
+function getRelationValue<T>(value: T | T[] | null | undefined) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
+function getRecentPaymentGuestName(payment: RecentPaymentActivity) {
+  const reservation = getRelationValue(payment.reservations);
+  if (!reservation) return 'Guest unavailable';
+
+  return [reservation.guest_first_name, reservation.guest_last_name]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    || reservation.guest_last_name
+    || 'Guest unavailable';
+}
+
 export default function BackofficePayments() {
   const navigate = useNavigate();
   const { user, isLoading: authLoading, isManager, isSuperAdmin, isActive } = useAuth();
@@ -147,7 +197,9 @@ export default function BackofficePayments() {
   const [guestWhatsapp, setGuestWhatsapp] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [existingPayments, setExistingPayments] = useState<ExistingPaymentLink[]>([]);
+  const [recentPayments, setRecentPayments] = useState<RecentPaymentActivity[]>([]);
   const [isLookingUp, setIsLookingUp] = useState(false);
+  const [isLoadingRecentPayments, setIsLoadingRecentPayments] = useState(false);
   const [isSendingLink, setIsSendingLink] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [resendingPaymentId, setResendingPaymentId] = useState<string | null>(null);
@@ -299,6 +351,57 @@ export default function BackofficePayments() {
     return session.access_token;
   }
 
+  const fetchRecentPayments = useCallback(async (notifyOnError = false) => {
+    setIsLoadingRecentPayments(true);
+    try {
+      let query = supabase
+        .from('reservation_payments')
+        .select(`
+          id,
+          amount,
+          currency_code,
+          reservation_id,
+          status,
+          payment_flow,
+          checkout_expires_at,
+          cloudbeds_logged,
+          created_at,
+          stripe_payment_method_summary,
+          riads:riads (
+            name
+          ),
+          reservations:reservations (
+            guest_first_name,
+            guest_last_name
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (selectedRiadId) {
+        query = query.eq('riad_id', selectedRiadId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      setRecentPayments((data || []) as RecentPaymentActivity[]);
+    } catch (error) {
+      console.error('Recent payments load failed:', error);
+      if (notifyOnError) {
+        toast.error('Failed to load recent payment activity');
+      }
+    } finally {
+      setIsLoadingRecentPayments(false);
+    }
+  }, [selectedRiadId]);
+
+  useEffect(() => {
+    if (user && isManager && isActive) {
+      void fetchRecentPayments();
+    }
+  }, [fetchRecentPayments, isActive, isManager, user]);
+
   async function lookupReservation(options?: { notify?: boolean; applySuggestedAmount?: boolean }) {
     if (!selectedSetting?.riad || !reservationId.trim() || !checkInDate) {
       toast.error('Select a property, reservation ID, and check-in date');
@@ -398,6 +501,7 @@ export default function BackofficePayments() {
 
       setGuestWhatsapp(result.clientWhatsapp ?? guestWhatsapp);
       await lookupReservation({ notify: false, applySuggestedAmount: false });
+      await fetchRecentPayments();
 
       if (result.whatsappSent) {
         toast.success(hasExistingLinks ? 'Additional payment link sent on WhatsApp' : 'Payment link sent on WhatsApp');
@@ -452,6 +556,7 @@ export default function BackofficePayments() {
 
       await lookupReservation({ notify: false, applySuggestedAmount: false });
       setGuestEmail(result.clientEmail ?? guestEmail);
+      await fetchRecentPayments();
 
       if (result.emailSent) {
         toast.success(hasExistingLinks ? 'Additional payment link sent by email' : 'Payment link sent by email');
@@ -497,6 +602,7 @@ export default function BackofficePayments() {
 
       setGuestWhatsapp(result.clientWhatsapp ?? guestWhatsapp);
       await lookupReservation({ notify: false, applySuggestedAmount: false });
+      await fetchRecentPayments();
 
       if (result.whatsappSent) {
         toast.success('Payment link resent on WhatsApp');
@@ -810,6 +916,63 @@ export default function BackofficePayments() {
                       Manual card entry is no longer exposed here. Every payment now starts from a Stripe Checkout link sent to the guest.
                     </AlertDescription>
                   </Alert>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                <div className="space-y-1">
+                  <CardTitle>Latest payment activity</CardTitle>
+                  <CardDescription>
+                    The 10 most recent payment entries {selectedSetting?.riad ? `for ${selectedSetting.riad.name}` : 'across your accessible properties'}.
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void fetchRecentPayments(true)}
+                  disabled={isLoadingRecentPayments}
+                >
+                  <RefreshCw className={cn('h-4 w-4', isLoadingRecentPayments && 'animate-spin')} />
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {isLoadingRecentPayments ? (
+                  <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading recent payments…
+                  </div>
+                ) : recentPayments.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                    No payment activity found yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {recentPayments.map((payment) => {
+                      const riad = getRelationValue(payment.riads);
+                      return (
+                        <div key={payment.id} className="rounded-lg border border-border/60 p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">
+                              {Number(payment.amount).toFixed(2)} {payment.currency_code}
+                            </span>
+                            <Badge variant="outline">{formatPaymentStatus(payment)}</Badge>
+                            <Badge variant="secondary">{formatPaymentFlow(payment.payment_flow)}</Badge>
+                          </div>
+                          <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                            <p>{riad?.name || 'Property unavailable'} • {payment.reservation_id}</p>
+                            <p>{getRecentPaymentGuestName(payment)}</p>
+                            <p>{format(parseISO(payment.created_at), 'PPP p')}</p>
+                            {payment.stripe_payment_method_summary && (
+                              <p>{payment.stripe_payment_method_summary}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </CardContent>
             </Card>
