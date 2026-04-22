@@ -1,0 +1,398 @@
+import {
+  corsHeaders,
+  ensureBackofficeContext,
+  getAccessibleRiads,
+  jsonResponse,
+  normalizeOptionalDate,
+  normalizeUniqueStrings,
+} from "../_shared/backoffice-utils.ts";
+
+type ArrivalsRequest = {
+  date?: string;
+  riadIds?: string[];
+  source?: string;
+  transportStatus?: "all" | "none" | "requested" | "confirmed";
+  checkinStatus?: "all" | "not_yet" | "completed";
+  search?: string;
+  reservationId?: string;
+};
+
+type ReservationRow = {
+  reservation_id: string;
+  riad_id: string | null;
+  property_id: string;
+  guest_first_name: string | null;
+  guest_last_name: string;
+  guest_country_code: string | null;
+  check_in_date: string;
+  check_out_date: string | null;
+  source: string | null;
+  status: string;
+};
+
+type TransportRequestRow = {
+  id: string;
+  reservation_id: string;
+  status: string;
+  transport_date: string;
+  transport_time: string;
+  pax: number;
+  guest_comment: string | null;
+  payload_details: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  transport_offer?: {
+    name?: string | null;
+    type?: string | null;
+  } | {
+    name?: string | null;
+    type?: string | null;
+  }[] | null;
+};
+
+type CheckinResponseRow = {
+  reservation_id: string;
+  transport_status: string | null;
+  transport_method: string | null;
+  transport_details: string | null;
+  arrival_time: string | null;
+  guests: Array<Record<string, unknown>> | null;
+  restauration_preferences: string | null;
+  bedding_preferences: string | null;
+  bedding_details: string | null;
+  other_requests: string | null;
+  completed_at: string | null;
+  synced_to_cloudbeds: boolean | null;
+  cloudbeds_sync_at: string | null;
+  cloudbeds_sync_error: string | null;
+};
+
+function normalizeSource(rawSource: string | null | undefined) {
+  const value = rawSource?.trim();
+  const lower = value?.toLowerCase() ?? "";
+
+  if (!value) {
+    return { sourceKey: "other", sourceLabel: "Other", sourceRaw: null };
+  }
+
+  if (lower.includes("booking")) {
+    return { sourceKey: "booking", sourceLabel: "Booking.com", sourceRaw: value };
+  }
+
+  if (lower.includes("airbnb")) {
+    return { sourceKey: "airbnb", sourceLabel: "Airbnb", sourceRaw: value };
+  }
+
+  if (lower.includes("expedia")) {
+    return { sourceKey: "expedia", sourceLabel: "Expedia", sourceRaw: value };
+  }
+
+  if (lower.includes("direct") || lower.includes("website") || lower.includes("walk")) {
+    return { sourceKey: "direct", sourceLabel: "Direct", sourceRaw: value };
+  }
+
+  return { sourceKey: "other", sourceLabel: value, sourceRaw: value };
+}
+
+function getGuestName(reservation: ReservationRow) {
+  return [reservation.guest_first_name, reservation.guest_last_name]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .join(" ")
+    || reservation.guest_last_name
+    || "Guest";
+}
+
+function getRelationValue<T>(value: T | T[] | null | undefined) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
+function pickTransportSummary(transportRequests: TransportRequestRow[]) {
+  if (transportRequests.length === 0) {
+    return {
+      transportStatus: "none" as const,
+      activeTransport: null,
+    };
+  }
+
+  const sorted = [...transportRequests].sort((a, b) => {
+    const rank = (status: string) => {
+      if (status === "confirmed") return 2;
+      if (status === "pending") return 1;
+      return 0;
+    };
+
+    const rankDelta = rank(b.status) - rank(a.status);
+    if (rankDelta !== 0) return rankDelta;
+
+    return new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime();
+  });
+
+  const activeTransport = sorted[0];
+
+  if (activeTransport.status === "confirmed") {
+    return {
+      transportStatus: "confirmed" as const,
+      activeTransport,
+    };
+  }
+
+  if (activeTransport.status === "pending") {
+    return {
+      transportStatus: "requested" as const,
+      activeTransport,
+    };
+  }
+
+  return {
+    transportStatus: "none" as const,
+    activeTransport: null,
+  };
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return jsonResponse({ success: false, error: "Method not allowed" }, 405);
+  }
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return jsonResponse({ success: false, error: "Authorization header required" }, 401);
+    }
+
+    const body = (await req.json()) as ArrivalsRequest;
+    const selectedDate = normalizeOptionalDate(body?.date) ?? new Date().toISOString().slice(0, 10);
+    const selectedRiadIds = normalizeUniqueStrings(body?.riadIds);
+    const search = typeof body?.search === "string" ? body.search.trim().toLowerCase() : "";
+    const sourceFilter = typeof body?.source === "string" ? body.source.trim().toLowerCase() : "all";
+    const transportFilter = body?.transportStatus ?? "all";
+    const checkinFilter = body?.checkinStatus ?? "all";
+    const reservationIdFilter = typeof body?.reservationId === "string" ? body.reservationId.trim() : "";
+
+    const { user, role, supabaseAdmin } = await ensureBackofficeContext(authHeader);
+    const accessibleRiads = await getAccessibleRiads({
+      supabaseAdmin,
+      userId: user.id,
+      role,
+      selectedRiadIds,
+    });
+
+    if (accessibleRiads.length === 0) {
+      return jsonResponse({
+        success: true,
+        data: reservationIdFilter
+          ? { arrival: null }
+          : { arrivals: [], properties: [], sources: [], date: selectedDate },
+      });
+    }
+
+    const propertyNameByRiadId = new Map(
+      accessibleRiads.map((riad) => [riad.id, riad.name]),
+    );
+    const accessibleRiadIds = accessibleRiads.map((riad) => riad.id);
+
+    let reservationsQuery = supabaseAdmin
+      .from("reservations")
+      .select("reservation_id, riad_id, property_id, guest_first_name, guest_last_name, guest_country_code, check_in_date, check_out_date, source, status")
+      .in("riad_id", accessibleRiadIds);
+
+    if (reservationIdFilter) {
+      reservationsQuery = reservationsQuery.eq("reservation_id", reservationIdFilter);
+    } else {
+      reservationsQuery = reservationsQuery
+        .eq("check_in_date", selectedDate)
+        .in("status", ["confirmed", "checked_in"]);
+    }
+
+    const { data: reservationsData, error: reservationsError } = await reservationsQuery.order("guest_last_name", { ascending: true });
+
+    if (reservationsError) {
+      console.error("[get-arrivals] Failed to load reservations:", reservationsError);
+      return jsonResponse({ success: false, error: "Failed to load arrivals" }, 500);
+    }
+
+    const reservations = (reservationsData ?? []) as ReservationRow[];
+    if (reservations.length === 0) {
+      return jsonResponse({
+        success: true,
+        data: reservationIdFilter
+          ? { arrival: null }
+          : {
+              arrivals: [],
+              properties: accessibleRiads.map(({ id, name }) => ({ id, name })),
+              sources: [],
+              date: selectedDate,
+            },
+      });
+    }
+
+    const reservationIds = reservations.map((reservation) => reservation.reservation_id);
+
+    const [{ data: transportRows, error: transportError }, { data: checkinRows, error: checkinError }] = await Promise.all([
+      supabaseAdmin
+        .from("transport_requests")
+        .select("id, reservation_id, status, transport_date, transport_time, pax, guest_comment, payload_details, created_at, updated_at, transport_offer:transport_offers(name, type)")
+        .in("reservation_id", reservationIds),
+      supabaseAdmin
+        .from("checkin_responses")
+        .select("reservation_id, transport_status, transport_method, transport_details, arrival_time, guests, restauration_preferences, bedding_preferences, bedding_details, other_requests, completed_at, synced_to_cloudbeds, cloudbeds_sync_at, cloudbeds_sync_error")
+        .in("reservation_id", reservationIds),
+    ]);
+
+    if (transportError) {
+      console.error("[get-arrivals] Failed to load transport requests:", transportError);
+      return jsonResponse({ success: false, error: "Failed to load transport data" }, 500);
+    }
+
+    if (checkinError) {
+      console.error("[get-arrivals] Failed to load digital check-in responses:", checkinError);
+      return jsonResponse({ success: false, error: "Failed to load digital check-in data" }, 500);
+    }
+
+    const transportByReservationId = new Map<string, TransportRequestRow[]>();
+    for (const rawRow of (transportRows ?? []) as TransportRequestRow[]) {
+      const current = transportByReservationId.get(rawRow.reservation_id) ?? [];
+      current.push(rawRow);
+      transportByReservationId.set(rawRow.reservation_id, current);
+    }
+
+    const checkinByReservationId = new Map(
+      ((checkinRows ?? []) as CheckinResponseRow[]).map((row) => [row.reservation_id, row]),
+    );
+
+    const arrivals = reservations
+      .map((reservation) => {
+        const source = normalizeSource(reservation.source);
+        const transportRowsForReservation = transportByReservationId.get(reservation.reservation_id) ?? [];
+        const { transportStatus, activeTransport } = pickTransportSummary(transportRowsForReservation);
+        const checkin = checkinByReservationId.get(reservation.reservation_id) ?? null;
+        const checkinStatus = checkin?.completed_at ? "completed" : "not_yet";
+        const propertyName = reservation.riad_id ? propertyNameByRiadId.get(reservation.riad_id) ?? "Property unavailable" : "Property unavailable";
+        const activeTransportOffer = getRelationValue(activeTransport?.transport_offer);
+
+        return {
+          reservationId: reservation.reservation_id,
+          riadId: reservation.riad_id,
+          propertyId: reservation.property_id,
+          propertyName,
+          guestName: getGuestName(reservation),
+          guestFirstName: reservation.guest_first_name,
+          guestLastName: reservation.guest_last_name,
+          guestCountryCode: reservation.guest_country_code,
+          checkInDate: reservation.check_in_date,
+          checkOutDate: reservation.check_out_date,
+          reservationStatus: reservation.status,
+          sourceKey: source.sourceKey,
+          sourceLabel: source.sourceLabel,
+          sourceRaw: source.sourceRaw,
+          transportStatus,
+          checkinStatus,
+          arrivalTime: checkin?.arrival_time ?? null,
+          transport: activeTransport ? {
+            id: activeTransport.id,
+            status: activeTransport.status,
+            date: activeTransport.transport_date,
+            time: activeTransport.transport_time,
+            pax: activeTransport.pax,
+            guestComment: activeTransport.guest_comment,
+            offerName: activeTransportOffer?.name ?? null,
+            offerType: activeTransportOffer?.type ?? null,
+          } : null,
+          checkin: checkin ? {
+            completedAt: checkin.completed_at,
+            syncedToCloudbeds: checkin.synced_to_cloudbeds ?? false,
+            cloudbedsSyncAt: checkin.cloudbeds_sync_at,
+            cloudbedsSyncError: checkin.cloudbeds_sync_error,
+            transportStatus: checkin.transport_status,
+            transportMethod: checkin.transport_method,
+            transportDetails: checkin.transport_details,
+            arrivalTime: checkin.arrival_time,
+            guests: Array.isArray(checkin.guests) ? checkin.guests : [],
+            restaurationPreferences: checkin.restauration_preferences,
+            beddingPreferences: checkin.bedding_preferences,
+            beddingDetails: checkin.bedding_details,
+            otherRequests: checkin.other_requests,
+          } : null,
+        };
+      })
+      .filter((arrival) => {
+        if (sourceFilter !== "all" && arrival.sourceKey !== sourceFilter) {
+          return false;
+        }
+
+        if (transportFilter !== "all" && arrival.transportStatus !== transportFilter) {
+          return false;
+        }
+
+        if (checkinFilter !== "all" && arrival.checkinStatus !== checkinFilter) {
+          return false;
+        }
+
+        if (search) {
+          const haystack = [
+            arrival.guestName,
+            arrival.propertyName,
+            arrival.reservationId,
+            arrival.sourceLabel,
+          ].join(" ").toLowerCase();
+
+          if (!haystack.includes(search)) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const timeA = a.arrivalTime ?? "99:99";
+        const timeB = b.arrivalTime ?? "99:99";
+        if (timeA !== timeB) {
+          return timeA.localeCompare(timeB);
+        }
+
+        const propertyDelta = a.propertyName.localeCompare(b.propertyName);
+        if (propertyDelta !== 0) {
+          return propertyDelta;
+        }
+
+        return a.guestName.localeCompare(b.guestName);
+      });
+
+    if (reservationIdFilter) {
+      return jsonResponse({
+        success: true,
+        data: {
+          arrival: arrivals[0] ?? null,
+        },
+      });
+    }
+
+    const sources = Array.from(
+      new Map(arrivals.map((arrival) => [arrival.sourceKey, { key: arrival.sourceKey, label: arrival.sourceLabel }])).values(),
+    );
+
+    return jsonResponse({
+      success: true,
+      data: {
+        date: selectedDate,
+        arrivals,
+        properties: accessibleRiads.map(({ id, name }) => ({ id, name })),
+        sources,
+      },
+    });
+  } catch (error) {
+    console.error("[get-arrivals]", error);
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : "Unexpected error",
+    }, 500);
+  }
+});

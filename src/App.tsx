@@ -7,6 +7,8 @@ import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
 import Backoffice from "./pages/Backoffice";
+import BackofficeArrivalDetail from "./pages/BackofficeArrivalDetail";
+import BackofficeArrivals from "./pages/BackofficeArrivals";
 import BackofficePayments from "./pages/BackofficePayments";
 import BackofficeReviews from "./pages/BackofficeReviews";
 import Confirmation from "./pages/Confirmation";
@@ -26,7 +28,9 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/backoffice" element={<Backoffice />} />
+          <Route path="/backoffice" element={<BackofficeArrivals />} />
+          <Route path="/backoffice/arrivals/:reservationId" element={<BackofficeArrivalDetail />} />
+          <Route path="/backoffice/transport" element={<Backoffice />} />
           <Route path="/backoffice/payments" element={<BackofficePayments />} />
           <Route path="/backoffice/reviews" element={<BackofficeReviews />} />
           <Route path="/payment/checkout-status" element={<PaymentCheckoutStatus />} />

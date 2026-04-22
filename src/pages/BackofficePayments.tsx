@@ -11,9 +11,11 @@ import {
   Mail,
   MessageSquareText,
   RefreshCw,
+  CarFront,
   Search,
   Send,
   Shield,
+  Users,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -696,6 +698,18 @@ export default function BackofficePayments() {
                 </Button>
               </Link>
             )}
+            <Link to="/backoffice">
+              <Button variant="ghost" size="sm">
+                <Users className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Arrivals</span>
+              </Button>
+            </Link>
+            <Link to="/backoffice/transport">
+              <Button variant="ghost" size="sm">
+                <CarFront className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Transport</span>
+              </Button>
+            </Link>
             <Link to="/backoffice/reviews">
               <Button variant="ghost" size="sm">
                 <MessageSquareText className="h-4 w-4 mr-2" />

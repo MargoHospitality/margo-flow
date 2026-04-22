@@ -51,6 +51,9 @@ verify_jwt = false
 [functions.get-reviews]
 verify_jwt = false
 
+[functions.get-arrivals]
+verify_jwt = false
+
 [functions.payment-reservation-lookup]
 verify_jwt = false
 
@@ -64,6 +67,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.stripe-checkout-webhook]
+verify_jwt = false
+
+[functions.test-manager-payment-email]
 verify_jwt = false
 
 [functions.submit-transport-request]
