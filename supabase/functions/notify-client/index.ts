@@ -100,7 +100,7 @@ async function sendEmail(to: string[], subject: string, html: string) {
 }
 
 function buildConfirmationEmailHtml(data: NotifyClientRequest, t: typeof translations.en): string {
-  const logoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/assets/margoflow-logo.png`;
+  const logoUrl = "https://flow.margo-hospitality.com/email-assets/margoflow-logo.png";
   const paymentModeText = data.isFreeTransfer ? t.paymentComplimentary : (data.paymentMode === 'at_riad' ? t.paymentAtRiad : t.paymentToDriver);
   const whatsappLink = data.managerWhatsapp 
     ? `https://wa.me/${data.managerWhatsapp.replace(/\D/g, '')}`

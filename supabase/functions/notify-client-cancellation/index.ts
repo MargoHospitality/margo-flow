@@ -100,7 +100,7 @@ async function sendEmail(to: string[], subject: string, html: string) {
 }
 
 function buildCancellationEmailHtml(data: NotifyCancellationRequest, t: typeof translations.en, managerEmail?: string, managerWhatsapp?: string): string {
-  const logoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/assets/margoflow-logo.png`;
+  const logoUrl = "https://flow.margo-hospitality.com/email-assets/margoflow-logo.png";
   const whatsappLink = managerWhatsapp 
     ? `https://wa.me/${managerWhatsapp.replace(/\D/g, '')}`
     : null;

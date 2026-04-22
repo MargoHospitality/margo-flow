@@ -48,7 +48,7 @@ async function sendEmail(to: string[], subject: string, html: string) {
 }
 
 function buildManagerEmailHtml(data: NotifyManagerRequest, isUrgent: boolean): string {
-  const logoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/assets/margoflow-logo.png`;
+  const logoUrl = "https://flow.margo-hospitality.com/email-assets/margoflow-logo.png";
   const reviewUrl = `${data.appUrl}/backoffice`;
   const urgentBanner = isUrgent ? `
           <tr>

@@ -87,7 +87,7 @@ function buildManagerReminderEmailHtml(data: {
   payloadDetails?: Record<string, string>;
   pax: number;
 }): string {
-  const logoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/assets/margoflow-logo.png`;
+  const logoUrl = "https://flow.margo-hospitality.com/email-assets/margoflow-logo.png";
   // Build transport details rows from payloadDetails
   const transportDetailsHtml = Object.entries(data.payloadDetails || {})
     .filter(([key, value]) => !['guest_email', 'guest_whatsapp', 'language'].includes(key) && value && String(value).trim())
@@ -275,7 +275,7 @@ function buildReminderEmailHtml(
   },
   t: typeof translations.en
 ): string {
-  const logoUrl = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/assets/margoflow-logo.png`;
+  const logoUrl = "https://flow.margo-hospitality.com/email-assets/margoflow-logo.png";
   const paymentModeText = data.isFreeTransfer ? t.paymentAtRiad : (data.paymentMode === 'at_riad' ? t.paymentAtRiad : t.paymentToDriver);
   const whatsappLink = data.managerWhatsapp 
     ? `https://wa.me/${data.managerWhatsapp.replace(/\D/g, '')}`

@@ -78,7 +78,7 @@ function generateEmailHtml({
           <!-- Header with Logo (White Background) -->
           <tr>
             <td style="background-color: ${BRAND.cardBg}; padding: 32px 40px; text-align: center; border-bottom: 1px solid ${BRAND.borderColor};" class="mobile-padding">
-              <img src="${supabaseUrl}/storage/v1/object/public/assets/margoflow-logo.png" alt="Margo Flow" width="180" style="display: block; margin: 0 auto; max-width: 180px; height: auto;" />
+              <img src="https://flow.margo-hospitality.com/email-assets/margoflow-logo.png" alt="Margo Flow" width="180" style="display: block; margin: 0 auto; max-width: 180px; height: auto;" />
             </td>
           </tr>
           
