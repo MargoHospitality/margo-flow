@@ -144,6 +144,10 @@ export async function sendManagerPaymentConfirmationEmail(params: {
   const backofficeUrl = params.backofficeUrl || "https://flow.margo-hospitality.com/backoffice/payments";
   const methodSummary = params.paymentMethodSummary?.trim() || "Stripe Checkout";
   const cloudbedsReference = params.cloudbedsReference?.trim() || null;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const logoUrl = supabaseUrl
+    ? `${supabaseUrl}/storage/v1/object/public/assets/margoflow-logo.png`
+    : null;
 
   const html = `
 <!DOCTYPE html>
@@ -160,7 +164,9 @@ export async function sendManagerPaymentConfirmationEmail(params: {
           <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
             <tr>
               <td style="padding:32px 32px 20px 32px;text-align:center;border-bottom:1px solid #e5e7eb;">
-                <h1 style="margin:0;color:#0f4c5c;font-size:28px;font-weight:700;">Margo Flow</h1>
+                ${logoUrl
+                  ? `<img src="${logoUrl}" alt="Margo Flow" style="height:40px;width:auto;" />`
+                  : `<h1 style="margin:0;color:#0f4c5c;font-size:28px;font-weight:700;">Margo Flow</h1>`}
               </td>
             </tr>
             <tr>
