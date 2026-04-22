@@ -76,6 +76,22 @@ function extractGuestWhatsapp(raw: unknown): string | null {
   ]);
 }
 
+function extractGuestEmail(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const reservation = raw as Record<string, unknown>;
+  const mainGuest = extractMainGuest(raw);
+
+  return pickFirstString([
+    mainGuest?.guestEmail,
+    mainGuest?.email,
+    reservation.guestEmail,
+    reservation.email,
+  ]);
+}
+
 function extractSuggestedAmount(raw: unknown): number | null {
   if (!raw || typeof raw !== "object") {
     return null;
@@ -179,13 +195,14 @@ serve(async (req) => {
     const effectiveReservation = liveReservation ?? (reservation.cloudbeds_raw as Record<string, unknown> | null);
     const suggestedAmount = extractSuggestedAmount(effectiveReservation);
     const guestWhatsapp = extractGuestWhatsapp(effectiveReservation);
+    const guestEmail = extractGuestEmail(effectiveReservation);
 
     const { data: existingPayments, error: paymentsError } = await authedClient
       .from("reservation_payments")
       .select("id, amount, currency_code, status, payment_flow, stripe_checkout_url, checkout_expires_at, client_whatsapp, link_last_sent_at, link_sent_count, cloudbeds_logged, created_at")
       .eq("riad_id", body.riad_id)
       .eq("reservation_id", reservation.reservation_id)
-      .eq("payment_flow", "whatsapp_link")
+      .in("payment_flow", ["whatsapp_link", "email_link"])
       .order("created_at", { ascending: false });
 
     if (paymentsError) {
@@ -209,6 +226,7 @@ serve(async (req) => {
           riad_id: reservation.riad_id,
         },
         guestWhatsapp: latestKnownWhatsapp,
+        guestEmail,
         suggestedAmount,
         existingPayments: existingPayments ?? [],
       },

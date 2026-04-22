@@ -8,6 +8,7 @@ import {
   CalendarIcon,
   ExternalLink,
   Loader2,
+  Mail,
   MessageSquareText,
   RefreshCw,
   Search,
@@ -74,6 +75,7 @@ interface PaymentLookupResponse {
   data: {
     reservation: ReservationLookup;
     guestWhatsapp: string | null;
+    guestEmail: string | null;
     suggestedAmount: number | null;
     existingPayments: ExistingPaymentLink[];
   };
@@ -84,9 +86,12 @@ interface PaymentLinkResponse {
   paymentId: string;
   paymentUrl: string;
   checkoutExpiresAt: string | null;
-  clientWhatsapp: string | null;
-  whatsappSent: boolean;
+  clientWhatsapp?: string | null;
+  whatsappSent?: boolean;
   whatsappError?: string | null;
+  clientEmail?: string | null;
+  emailSent?: boolean;
+  emailError?: string | null;
 }
 
 const PAYMENT_DRAFT_STORAGE_KEY = 'margo-flow:backoffice-payments:draft';
@@ -98,6 +103,7 @@ interface PaymentDraft {
   reservation: ReservationLookup | null;
   amountInput: string;
   guestWhatsapp: string;
+  guestEmail: string;
 }
 
 function isLinkExpired(value: string | null) {
@@ -122,6 +128,12 @@ function formatPaymentStatus(payment: ExistingPaymentLink) {
   return payment.status.replaceAll('_', ' ');
 }
 
+function formatPaymentFlow(paymentFlow: string) {
+  if (paymentFlow === 'email_link') return 'Email';
+  if (paymentFlow === 'whatsapp_link') return 'WhatsApp';
+  return paymentFlow.replaceAll('_', ' ');
+}
+
 export default function BackofficePayments() {
   const navigate = useNavigate();
   const { user, isLoading: authLoading, isManager, isSuperAdmin, isActive } = useAuth();
@@ -133,9 +145,11 @@ export default function BackofficePayments() {
   const [reservation, setReservation] = useState<ReservationLookup | null>(null);
   const [amountInput, setAmountInput] = useState('');
   const [guestWhatsapp, setGuestWhatsapp] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
   const [existingPayments, setExistingPayments] = useState<ExistingPaymentLink[]>([]);
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [isSendingLink, setIsSendingLink] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [resendingPaymentId, setResendingPaymentId] = useState<string | null>(null);
   const hasHydratedDraftRef = useRef(false);
   const previousSelectedRiadIdRef = useRef('');
@@ -155,6 +169,7 @@ export default function BackofficePayments() {
       if (draft.reservation) setReservation(draft.reservation as ReservationLookup);
       if (draft.amountInput) setAmountInput(draft.amountInput);
       if (draft.guestWhatsapp) setGuestWhatsapp(draft.guestWhatsapp);
+      if (draft.guestEmail) setGuestEmail(draft.guestEmail);
     } catch (error) {
       console.error('Failed to restore payment draft:', error);
       window.sessionStorage.removeItem(PAYMENT_DRAFT_STORAGE_KEY);
@@ -228,6 +243,7 @@ export default function BackofficePayments() {
       setReservation(null);
       setAmountInput('');
       setGuestWhatsapp('');
+      setGuestEmail('');
       setExistingPayments([]);
     }
 
@@ -246,6 +262,7 @@ export default function BackofficePayments() {
       reservation,
       amountInput,
       guestWhatsapp,
+      guestEmail,
     };
 
     const isEmptyDraft = !selectedRiadId
@@ -253,7 +270,8 @@ export default function BackofficePayments() {
       && !checkInDate
       && !reservation
       && !amountInput
-      && !guestWhatsapp;
+      && !guestWhatsapp
+      && !guestEmail;
 
     if (isEmptyDraft) {
       window.sessionStorage.removeItem(PAYMENT_DRAFT_STORAGE_KEY);
@@ -261,7 +279,7 @@ export default function BackofficePayments() {
     }
 
     window.sessionStorage.setItem(PAYMENT_DRAFT_STORAGE_KEY, JSON.stringify(draft));
-  }, [amountInput, checkInDate, guestWhatsapp, reservation, reservationId, selectedRiadId]);
+  }, [amountInput, checkInDate, guestEmail, guestWhatsapp, reservation, reservationId, selectedRiadId]);
 
   const selectedSetting = useMemo(
     () => settings.find((item) => item.riad_id === selectedRiadId) ?? null,
@@ -318,6 +336,7 @@ export default function BackofficePayments() {
       setReservation(result.data.reservation);
       setExistingPayments(result.data.existingPayments ?? []);
       setGuestWhatsapp(result.data.guestWhatsapp ?? '');
+      setGuestEmail(result.data.guestEmail ?? '');
       if (applySuggestedAmount) {
         setAmountInput(result.data.suggestedAmount !== null ? result.data.suggestedAmount.toFixed(2) : '');
       }
@@ -330,6 +349,7 @@ export default function BackofficePayments() {
       setReservation(null);
       setExistingPayments([]);
       setGuestWhatsapp('');
+      setGuestEmail('');
       if (shouldNotify) {
         toast.error(error instanceof Error ? error.message : 'Failed to load reservation');
       }
@@ -389,6 +409,60 @@ export default function BackofficePayments() {
       toast.error(error instanceof Error ? error.message : 'Failed to create payment link');
     } finally {
       setIsSendingLink(false);
+    }
+  }
+
+  async function createEmailPaymentLink() {
+    if (!selectedSetting?.riad || !reservation || !amountIsValid) {
+      toast.error('Find a reservation and enter a valid amount first');
+      return;
+    }
+
+    if (!guestEmail.trim()) {
+      toast.error('Enter the guest email before sending a payment link');
+      return;
+    }
+
+    setIsSendingEmail(true);
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment-checkout-link-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            riad_id: selectedSetting.riad.id,
+            reservation_id: reservation.reservation_id,
+            check_in_date: reservation.check_in_date,
+            amount: parsedAmount,
+            client_email: guestEmail,
+            app_origin: window.location.origin,
+          }),
+        },
+      );
+
+      const result = await response.json() as PaymentLinkResponse & { error?: string };
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to create payment email');
+      }
+
+      await lookupReservation({ notify: false, applySuggestedAmount: false });
+      setGuestEmail(result.clientEmail ?? guestEmail);
+
+      if (result.emailSent) {
+        toast.success(hasExistingLinks ? 'Additional payment link sent by email' : 'Payment link sent by email');
+      } else {
+        toast.error(result.emailError || 'Link created but email sending failed');
+      }
+    } catch (error) {
+      console.error('Payment email creation failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create payment email');
+    } finally {
+      setIsSendingEmail(false);
     }
   }
 
@@ -500,12 +574,12 @@ export default function BackofficePayments() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
           <div className="space-y-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Reservation Lookup</CardTitle>
-                <CardDescription>
-                  Pick a payment-enabled property, then load the reservation to pull the live balance and guest WhatsApp details from Cloudbeds.
-                </CardDescription>
-              </CardHeader>
+                <CardHeader>
+                  <CardTitle>Reservation Lookup</CardTitle>
+                  <CardDescription>
+                  Pick a payment-enabled property, then load the reservation to pull the live balance plus the guest WhatsApp and email details from Cloudbeds.
+                  </CardDescription>
+                </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 md:col-span-2">
@@ -613,6 +687,19 @@ export default function BackofficePayments() {
                     </p>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label>Guest email</Label>
+                    <Input
+                      type="email"
+                      value={guestEmail}
+                      onChange={(event) => setGuestEmail(event.target.value)}
+                      placeholder="guest@example.com"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use this fallback if the guest does not use WhatsApp. The email is also prefilled from Cloudbeds and stays editable.
+                    </p>
+                  </div>
+
                   {hasExistingLinks && (
                     <Alert className="border-amber-200 bg-amber-50/60 text-amber-950 [&>svg]:text-amber-700">
                       <AlertTriangle className="h-4 w-4" />
@@ -629,9 +716,12 @@ export default function BackofficePayments() {
                                   <div className="flex flex-wrap items-center gap-2">
                                     <span className="font-medium">{Number(payment.amount).toFixed(2)} {payment.currency_code}</span>
                                     <Badge variant="outline">{formatPaymentStatus(payment)}</Badge>
+                                    <Badge variant="secondary">{formatPaymentFlow(payment.payment_flow)}</Badge>
                                   </div>
                                   <p>Created {format(parseISO(payment.created_at), 'PPP p')}</p>
-                                  <p>WhatsApp: {payment.client_whatsapp || '—'}</p>
+                                  {payment.payment_flow === 'whatsapp_link' && (
+                                    <p>WhatsApp: {payment.client_whatsapp || '—'}</p>
+                                  )}
                                   <p>Sent count: {payment.link_sent_count}</p>
                                   {payment.checkout_expires_at && (
                                     <p>Expires {format(parseISO(payment.checkout_expires_at), 'PPP p')}</p>
@@ -653,7 +743,7 @@ export default function BackofficePayments() {
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    disabled={!canResendLink(payment) || resendingPaymentId === payment.id}
+                                    disabled={payment.payment_flow !== 'whatsapp_link' || !canResendLink(payment) || resendingPaymentId === payment.id}
                                     onClick={() => void resendPaymentLink(payment)}
                                   >
                                     {resendingPaymentId === payment.id ? (
@@ -661,7 +751,7 @@ export default function BackofficePayments() {
                                     ) : (
                                       <RefreshCw className="mr-2 h-4 w-4" />
                                     )}
-                                    Resend
+                                    Resend on WhatsApp
                                   </Button>
                                 </div>
                               </div>
@@ -672,10 +762,22 @@ export default function BackofficePayments() {
                     </Alert>
                   )}
 
-                  <Button onClick={createWhatsappPaymentLink} disabled={isSendingLink || !amountIsValid || !guestWhatsapp.trim()}>
-                    {isSendingLink ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                    {hasExistingLinks ? 'Send additional WhatsApp payment link' : 'Send WhatsApp payment link'}
-                  </Button>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Button className="sm:flex-1" onClick={createWhatsappPaymentLink} disabled={isSendingLink || !amountIsValid || !guestWhatsapp.trim()}>
+                      {isSendingLink ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                      {hasExistingLinks ? 'Send additional WhatsApp payment link' : 'Send WhatsApp payment link'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="sm:flex-1"
+                      onClick={createEmailPaymentLink}
+                      disabled={isSendingEmail || !amountIsValid || !guestEmail.trim()}
+                    >
+                      {isSendingEmail ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                      {hasExistingLinks ? 'Send additional payment link by email' : 'Send by email instead'}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -686,7 +788,7 @@ export default function BackofficePayments() {
               <CardHeader>
                 <CardTitle>{selectedSetting?.payment_label || 'Payment links'}</CardTitle>
                 <CardDescription>
-                  This screen now uses only Stripe Checkout links sent through WhatsApp. Once the guest pays, Margo Flow posts the payment back into Cloudbeds automatically.
+                  This screen now uses Stripe Checkout links sent through WhatsApp by default, with email as a fallback. Once the guest pays, Margo Flow posts the payment back into Cloudbeds automatically.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -697,7 +799,7 @@ export default function BackofficePayments() {
                 )}
 
                 <div className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
-                  After the lookup, adjust the amount if needed, confirm the guest WhatsApp number, then send the Stripe link. Existing links stay visible on the left so the team can resend one or send an additional link for split payments.
+                  After the lookup, adjust the amount if needed, confirm the guest contact, then send the Stripe link through WhatsApp or by email when WhatsApp is not available. Existing links stay visible on the left so the team can resend one or send an additional link for split payments.
                 </div>
 
                 {reservation && (

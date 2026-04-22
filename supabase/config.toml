@@ -57,6 +57,9 @@ verify_jwt = false
 [functions.create-payment-checkout-link]
 verify_jwt = false
 
+[functions.create-payment-checkout-link-email]
+verify_jwt = false
+
 [functions.send-payment-link-whatsapp]
 verify_jwt = false
 

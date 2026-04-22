@@ -46,8 +46,7 @@ serve(async (req) => {
         await adminClient
           .from("reservation_payments")
           .update({ status: "checkout_expired" })
-          .eq("id", paymentId)
-          .eq("payment_flow", "whatsapp_link");
+          .eq("id", paymentId);
       }
 
       return jsonResponse({ success: true });
