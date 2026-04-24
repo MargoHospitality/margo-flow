@@ -69,6 +69,27 @@ interface TransportOfferPricing {
   day_end_time: string;
 }
 
+interface CloudbedsNoteResult {
+  success?: boolean;
+  note_created?: boolean;
+  skipped_reason?: string;
+  reservation_id?: string;
+  property_id?: string;
+  error?: string;
+  cloudbeds_status_code?: number;
+  cloudbeds_message?: string;
+}
+
+interface TransportOfferDefaults {
+  default_day_price: number | string;
+  default_night_price: number | string;
+  default_base_pax: number;
+  default_extra_pax_price: number | string;
+  default_payment_mode: 'at_riad' | 'to_driver';
+  day_start_time: string;
+  day_end_time: string;
+}
+
 export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }: RequestCardProps) {
   const { t, language } = useLanguage();
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
@@ -206,7 +227,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
           },
         });
 
-        const d = noteResult.data as any;
+        const d = noteResult.data as CloudbedsNoteResult | null;
 
         if (d?.success && d?.note_created) {
           console.log('Cloudbeds note added successfully', { reservation_id: d.reservation_id, property_id: d.property_id });
@@ -226,6 +247,30 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
       } catch (noteError) {
         console.error('Error adding Cloudbeds note:', noteError);
         toast.error('Cloudbeds note failed');
+      }
+
+      // Sync arrival time to Cloudbeds (non-blocking)
+      try {
+        const syncResult = await supabase.functions.invoke('sync-transport-arrival-time', {
+          body: {
+            transport_request_id: request.id,
+          },
+        });
+
+        const syncData = syncResult.data as { success?: boolean; updated?: boolean; skippedReason?: string; error?: string } | null;
+        if (!syncData?.success && syncData?.error) {
+          console.error('Cloudbeds arrival time sync failed:', syncData.error);
+          if (isSuperAdmin) {
+            toast.message('Arrival time sync skipped', {
+              description: syncData.error,
+            });
+          }
+        }
+      } catch (syncError) {
+        console.error('Error syncing Cloudbeds arrival time:', syncError);
+        if (isSuperAdmin) {
+          toast.message('Arrival time sync failed');
+        }
       }
 
       toast.success(t('confirm_transport'));
@@ -373,6 +418,32 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
         .eq('id', request.id);
 
       if (error) throw error;
+
+      if (request.status === 'confirmed') {
+        try {
+          const syncResult = await supabase.functions.invoke('sync-transport-arrival-time', {
+            body: {
+              transport_request_id: request.id,
+            },
+          });
+
+          const syncData = syncResult.data as { success?: boolean; updated?: boolean; skippedReason?: string; error?: string } | null;
+          if (!syncData?.success && syncData?.error) {
+            console.error('Cloudbeds arrival time sync failed after edit:', syncData.error);
+            if (isSuperAdmin) {
+              toast.message('Arrival time sync skipped', {
+                description: syncData.error,
+              });
+            }
+          }
+        } catch (syncError) {
+          console.error('Error syncing Cloudbeds arrival time after edit:', syncError);
+          if (isSuperAdmin) {
+            toast.message('Arrival time sync failed');
+          }
+        }
+      }
+
       toast.success(t('save'));
       setIsEditDialogOpen(false);
       onUpdate();
@@ -442,7 +513,7 @@ export function RequestCard({ request, isSuperAdmin, onUpdate, compact = false }
           day_end_time: defaultOffer.day_end_time,
         });
       } else {
-        const offer = riadOffer.transport_offers as any;
+        const offer = riadOffer.transport_offers as unknown as TransportOfferDefaults;
         setTransportOfferPricing({
           day_price: riadOffer.override_day_price != null ? Number(riadOffer.override_day_price) : Number(offer.default_day_price),
           night_price: riadOffer.override_night_price != null ? Number(riadOffer.override_night_price) : Number(offer.default_night_price),
