@@ -79,6 +79,23 @@ function pickFirstString(values: unknown[]) {
   return null;
 }
 
+function normalizeCountryValue(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const lower = trimmed.toLowerCase();
+  if (["0", "00", "n/a", "na", "unknown", "null"].includes(lower)) {
+    return null;
+  }
+
+  if (/^[a-z]{2}$/i.test(trimmed)) {
+    return trimmed.toUpperCase();
+  }
+
+  return trimmed;
+}
+
 function parseCheckinGuests(rawGuests: unknown): Array<Record<string, unknown>> {
   let parsed = rawGuests;
 
@@ -133,6 +150,35 @@ function extractGuestPhone(rawReservation: Record<string, unknown> | null | unde
     rawReservation?.phone,
     rawReservation?.mobile,
   ]);
+}
+
+function extractGuestCountry(
+  reservationCountryCode: string | null | undefined,
+  rawReservation: Record<string, unknown> | null | undefined,
+  checkinGuests: Array<Record<string, unknown>>,
+) {
+  const mainGuest = extractMainGuest(rawReservation);
+  const submittedPrimaryGuest = checkinGuests[0] ?? null;
+
+  const candidates = [
+    reservationCountryCode,
+    mainGuest?.guestCountry,
+    mainGuest?.guestCountryCode,
+    mainGuest?.countryCode,
+    mainGuest?.country,
+    rawReservation?.guestCountry,
+    rawReservation?.guestCountryCode,
+    rawReservation?.countryCode,
+    rawReservation?.country,
+    submittedPrimaryGuest?.nationality,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeCountryValue(candidate);
+    if (normalized) return normalized;
+  }
+
+  return null;
 }
 
 function extractGuestCount(rawReservation: Record<string, unknown> | null | undefined, checkinGuests: Array<Record<string, unknown>>) {
@@ -433,6 +479,7 @@ Deno.serve(async (req) => {
         const propertyName = reservation.riad_id ? propertyNameByRiadId.get(reservation.riad_id) ?? "Property unavailable" : "Property unavailable";
         const activeTransportOffer = getRelationValue(activeTransport?.transport_offer);
         const guestPhone = extractGuestPhone(reservation.cloudbeds_raw, parsedCheckinGuests);
+        const guestCountry = extractGuestCountry(reservation.guest_country_code, reservation.cloudbeds_raw, parsedCheckinGuests);
         const guestCount = extractGuestCount(reservation.cloudbeds_raw, parsedCheckinGuests);
         const roomNames = extractRoomNames(reservation.cloudbeds_raw);
 
@@ -444,7 +491,7 @@ Deno.serve(async (req) => {
           guestName: getGuestName(reservation),
           guestFirstName: reservation.guest_first_name,
           guestLastName: reservation.guest_last_name,
-          guestCountryCode: reservation.guest_country_code,
+          guestCountryCode: guestCountry,
           guestPhone,
           checkInDate: reservation.check_in_date,
           checkOutDate: reservation.check_out_date,

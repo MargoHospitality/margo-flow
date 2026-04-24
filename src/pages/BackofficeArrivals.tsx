@@ -45,6 +45,7 @@ import {
   ArrivalTransportStatus,
   getCheckinBadgeClass,
   getCheckinLabel,
+  getSourceBadgeClass,
   getTransportBadgeClass,
   getTransportLabel,
 } from '@/lib/arrivals';
@@ -94,6 +95,90 @@ function buildWhatsappUrl(phone: string | null) {
   const digitsOnly = phone.replace(/\D/g, '');
   if (!digitsOnly) return null;
   return `https://wa.me/${digitsOnly}`;
+}
+
+function getFlagEmoji(countryCode: string) {
+  if (!/^[A-Z]{2}$/.test(countryCode)) return null;
+  return String.fromCodePoint(...countryCode.split('').map((char) => 127397 + char.charCodeAt(0)));
+}
+
+function formatCountryDisplay(countryValue: string | null) {
+  if (!countryValue) return '—';
+  const normalized = countryValue.trim();
+  if (!normalized) return '—';
+
+  const upper = normalized.toUpperCase();
+  const flag = getFlagEmoji(upper);
+  if (flag) {
+    return `${flag} ${upper}`;
+  }
+
+  return normalized;
+}
+
+function humanizeToken(value: string | null | undefined) {
+  if (!value) return '—';
+
+  const normalized = value.trim();
+  if (!normalized) return '—';
+
+  const specialCases: Record<string, string> = {
+    no_meal: 'No meal',
+    breakfast: 'Breakfast',
+    half_board: 'Half board',
+    full_board: 'Full board',
+    all_inclusive: 'All inclusive',
+    twin: 'Twin beds',
+    double: 'Double bed',
+    single: 'Single bed',
+    king: 'King bed',
+    queen: 'Queen bed',
+    no_preference: 'No preference',
+  };
+
+  const lower = normalized.toLowerCase();
+  if (specialCases[lower]) {
+    return specialCases[lower];
+  }
+
+  return normalized
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatCompactDateTime(value: string | null) {
+  if (!value) return '—';
+  return format(parseISO(value), 'dd/MM/yyyy - HH:mm');
+}
+
+function getSectionClasses(section: 'reservation' | 'checkin' | 'transport') {
+  if (section === 'reservation') {
+    return {
+      wrapper: 'rounded-xl border border-slate-200 bg-slate-50/80 p-4',
+      title: 'bg-slate-900 text-white',
+      icon: 'text-slate-500',
+      field: 'rounded-lg border border-slate-200/90 bg-white/90 px-3 py-2.5',
+      muted: 'text-slate-500',
+    };
+  }
+
+  if (section === 'checkin') {
+    return {
+      wrapper: 'rounded-xl border border-emerald-200 bg-emerald-50/80 p-4',
+      title: 'bg-emerald-700 text-white',
+      icon: 'text-emerald-700',
+      field: 'rounded-lg border border-emerald-200/90 bg-white/85 px-3 py-2.5',
+      muted: 'text-emerald-700/80',
+    };
+  }
+
+  return {
+    wrapper: 'rounded-xl border border-amber-200 bg-amber-50/80 p-4',
+    title: 'bg-amber-500 text-slate-950',
+    icon: 'text-amber-700',
+    field: 'rounded-lg border border-amber-200/90 bg-white/85 px-3 py-2.5',
+    muted: 'text-amber-800/80',
+  };
 }
 
 export default function BackofficeArrivals() {
@@ -442,7 +527,10 @@ export default function BackofficeArrivals() {
               const isExpanded = expandedReservationId === arrival.reservationId;
               const whatsappUrl = buildWhatsappUrl(arrival.guestPhone);
               const transportDetailEntries = Object.entries(arrival.transport?.payloadDetails ?? {})
-                .filter(([key, value]) => !['guest_email', 'guest_whatsapp'].includes(key) && value !== null && value !== undefined && `${value}`.trim().length > 0);
+                .filter(([key, value]) => !['guest_email', 'guest_whatsapp', 'language'].includes(key) && value !== null && value !== undefined && `${value}`.trim().length > 0);
+              const reservationStyles = getSectionClasses('reservation');
+              const checkinStyles = getSectionClasses('checkin');
+              const transportStyles = getSectionClasses('transport');
 
               return (
                 <Card
@@ -468,7 +556,7 @@ export default function BackofficeArrivals() {
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                            <Badge variant="outline" className={cn('border-transparent', getSourceBadgeClass(arrival.sourceKey))}>
                               <SourceIcon className="mr-2 h-3.5 w-3.5" />
                               {arrival.sourceLabel}
                             </Badge>
@@ -540,73 +628,79 @@ export default function BackofficeArrivals() {
 
                         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
                           <div className="space-y-4">
-                            <div className="rounded-xl border border-border/60 p-4">
-                              <div className="mb-3 text-sm font-medium">Reservation</div>
-                              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                <div>
+                            <div className={reservationStyles.wrapper}>
+                              <div className="mb-3 flex items-center gap-2">
+                                <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold', reservationStyles.title)}>
+                                  Reservation
+                                </span>
+                              </div>
+                              <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                                <div className={reservationStyles.field}>
                                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Property</p>
                                   <p className="mt-1 font-medium">{arrival.propertyName}</p>
                                 </div>
-                                <div>
+                                <div className={reservationStyles.field}>
                                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Reservation ID</p>
                                   <p className="mt-1 font-medium">{arrival.reservationId}</p>
                                 </div>
-                                <div>
+                                <div className={reservationStyles.field}>
                                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Source</p>
                                   <p className="mt-1 font-medium">{arrival.sourceLabel}</p>
                                 </div>
-                                <div>
+                                <div className={reservationStyles.field}>
                                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Check-out</p>
                                   <p className="mt-1 font-medium">{arrival.checkOutDate ? format(parseISO(arrival.checkOutDate), 'PPP') : '—'}</p>
                                 </div>
-                                <div>
+                                <div className={reservationStyles.field}>
                                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Guest country</p>
-                                  <p className="mt-1 font-medium">{arrival.guestCountryCode || '—'}</p>
+                                  <p className="mt-1 font-medium">{formatCountryDisplay(arrival.guestCountryCode)}</p>
                                 </div>
-                                <div>
+                                <div className={reservationStyles.field}>
                                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Rooms</p>
                                   <p className="mt-1 font-medium">{arrival.roomNames.join(' • ') || '—'}</p>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="rounded-xl border border-border/60 p-4">
+                            <div className={checkinStyles.wrapper}>
                               <div className="mb-3 flex items-center gap-2">
-                                <UserCheck className="h-4 w-4 text-muted-foreground" />
-                                <p className="text-sm font-medium">Digital check-in</p>
+                                <UserCheck className={cn('h-4 w-4', checkinStyles.icon)} />
+                                <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold', checkinStyles.title)}>
+                                  Digital check-in
+                                </span>
                               </div>
                               {arrival.checkinStatus === 'not_yet' || !arrival.checkin ? (
-                                <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                                <div className={cn(checkinStyles.field, 'border-dashed text-sm text-muted-foreground')}>
                                   The guest has not completed the digital check-in yet.
                                 </div>
                               ) : (
                                 <div className="space-y-4">
-                                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                    <div className="rounded-lg border border-border/60 p-3">
+                                  <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
+                                    <div className={checkinStyles.field}>
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Completed at</p>
-                                      <p className="mt-1 font-medium">{arrival.checkin.completedAt ? format(parseISO(arrival.checkin.completedAt), 'PPP p') : '—'}</p>
+                                      <p className="mt-1 font-medium">{formatCompactDateTime(arrival.checkin.completedAt)}</p>
                                     </div>
-                                    <div className="rounded-lg border border-border/60 p-3">
+                                    <div className={checkinStyles.field}>
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Cloudbeds sync</p>
                                       <p className="mt-1 font-medium">{arrival.checkin.syncedToCloudbeds ? 'Synced' : 'Not synced yet'}</p>
                                     </div>
-                                    <div className="rounded-lg border border-border/60 p-3">
+                                    <div className={checkinStyles.field}>
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Arrival time</p>
                                       <p className="mt-1 font-medium">{arrival.checkin.arrivalTime || '—'}</p>
                                     </div>
-                                    <div className="rounded-lg border border-border/60 p-3">
+                                    <div className={checkinStyles.field}>
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Guests submitted</p>
                                       <p className="mt-1 font-medium">{arrival.checkin.guests.length}</p>
                                     </div>
                                   </div>
 
                                   {arrival.transportStatus === 'none' && (arrival.checkin.transportMethod || arrival.checkin.transportDetails) && (
-                                    <div className="grid gap-3 md:grid-cols-2">
-                                      <div className="rounded-lg border border-border/60 p-3">
+                                    <div className="grid gap-2.5 md:grid-cols-2">
+                                      <div className={checkinStyles.field}>
                                         <p className="text-xs uppercase tracking-wide text-muted-foreground">Alternative transport</p>
-                                        <p className="mt-1 font-medium">{arrival.checkin.transportMethod || '—'}</p>
+                                        <p className="mt-1 font-medium">{humanizeToken(arrival.checkin.transportMethod)}</p>
                                       </div>
-                                      <div className="rounded-lg border border-border/60 p-3">
+                                      <div className={checkinStyles.field}>
                                         <p className="text-xs uppercase tracking-wide text-muted-foreground">Comment</p>
                                         <p className="mt-1 font-medium">{arrival.checkin.transportDetails || '—'}</p>
                                       </div>
@@ -618,31 +712,35 @@ export default function BackofficeArrivals() {
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Guest identities</p>
                                       <div className="grid gap-2 md:grid-cols-2">
                                         {arrival.checkin.guests.map((guest, index) => (
-                                          <div key={`${getGuestIdentity(guest)}-${index}`} className="rounded-lg border border-border/60 p-3">
+                                          <div key={`${getGuestIdentity(guest)}-${index}`} className={checkinStyles.field}>
                                             <p className="font-medium">{getGuestIdentity(guest)}</p>
-                                            <p className="mt-1 text-sm text-muted-foreground">
-                                              {[guest.nationality, guest.passportNumber].filter(Boolean).join(' • ') || 'No document details'}
-                                            </p>
+                                            {[guest.nationality, guest.passportNumber].filter(Boolean).length > 0 && (
+                                              <p className="mt-1 text-sm text-muted-foreground">
+                                                {[guest.nationality, guest.passportNumber].filter(Boolean).join(' • ')}
+                                              </p>
+                                            )}
                                           </div>
                                         ))}
                                       </div>
                                     </div>
                                   )}
 
-                                  <div className="grid gap-3 md:grid-cols-2">
-                                    <div className="rounded-lg border border-border/60 p-3">
+                                  <div className="grid gap-2.5 md:grid-cols-2">
+                                    <div className={checkinStyles.field}>
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Restauration</p>
-                                      <p className="mt-1 font-medium">{arrival.checkin.restaurationPreferences || '—'}</p>
+                                      <p className="mt-1 font-medium">{humanizeToken(arrival.checkin.restaurationPreferences)}</p>
                                     </div>
-                                    <div className="rounded-lg border border-border/60 p-3">
+                                    <div className={checkinStyles.field}>
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Bedding</p>
                                       <p className="mt-1 font-medium">
-                                        {[arrival.checkin.beddingPreferences, arrival.checkin.beddingDetails].filter(Boolean).join(' • ') || '—'}
+                                        {[humanizeToken(arrival.checkin.beddingPreferences), humanizeToken(arrival.checkin.beddingDetails)]
+                                          .filter((value) => value !== '—')
+                                          .join(' • ') || '—'}
                                       </p>
                                     </div>
                                   </div>
 
-                                  <div className="rounded-lg border border-border/60 p-3">
+                                  <div className={checkinStyles.field}>
                                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Other requests</p>
                                     <p className="mt-1 font-medium">{arrival.checkin.otherRequests || '—'}</p>
                                   </div>
@@ -651,31 +749,33 @@ export default function BackofficeArrivals() {
                             </div>
                           </div>
 
-                          <div className="rounded-xl border border-border/60 p-4">
+                          <div className={transportStyles.wrapper}>
                             <div className="mb-3 flex items-center gap-2">
-                              <CarFront className="h-4 w-4 text-muted-foreground" />
-                              <p className="text-sm font-medium">Transport</p>
+                              <CarFront className={cn('h-4 w-4', transportStyles.icon)} />
+                              <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold', transportStyles.title)}>
+                                Transport
+                              </span>
                             </div>
                             {!arrival.transport ? (
-                              <div className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                              <div className={cn(transportStyles.field, 'border-dashed text-sm text-muted-foreground')}>
                                 No transport request is currently attached to this reservation.
                               </div>
                             ) : (
                               <div className="space-y-4">
-                                <div className="grid gap-3 md:grid-cols-2">
-                                  <div className="rounded-lg border border-border/60 p-3">
+                                <div className="grid gap-2.5 md:grid-cols-2">
+                                  <div className={transportStyles.field}>
                                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
                                     <p className="mt-1 font-medium">{getTransportLabel(arrival.transportStatus)}</p>
                                   </div>
-                                  <div className="rounded-lg border border-border/60 p-3">
+                                  <div className={transportStyles.field}>
                                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Offer</p>
                                     <p className="mt-1 font-medium">{arrival.transport.offerName || 'Transport request'}</p>
                                   </div>
-                                  <div className="rounded-lg border border-border/60 p-3">
+                                  <div className={transportStyles.field}>
                                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Transport time</p>
                                     <p className="mt-1 font-medium">{arrival.transport.time}</p>
                                   </div>
-                                  <div className="rounded-lg border border-border/60 p-3">
+                                  <div className={transportStyles.field}>
                                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Passengers</p>
                                     <p className="mt-1 font-medium">{arrival.transport.pax}</p>
                                   </div>
@@ -689,9 +789,9 @@ export default function BackofficeArrivals() {
                                 )}
 
                                 {transportDetailEntries.length > 0 && (
-                                  <div className="grid gap-3 md:grid-cols-2">
+                                  <div className="grid gap-2.5 md:grid-cols-2">
                                     {transportDetailEntries.map(([key, value]) => (
-                                      <div key={key} className="rounded-lg border border-border/60 p-3">
+                                      <div key={key} className={transportStyles.field}>
                                         <p className="text-xs uppercase tracking-wide text-muted-foreground">{getTransportFieldLabel(key)}</p>
                                         <p className="mt-1 font-medium">{String(value)}</p>
                                       </div>
@@ -699,7 +799,7 @@ export default function BackofficeArrivals() {
                                   </div>
                                 )}
 
-                                <div className="rounded-lg border border-border/60 p-3">
+                                <div className={transportStyles.field}>
                                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Guest comment</p>
                                   <p className="mt-1 font-medium">{arrival.transport.guestComment || '—'}</p>
                                 </div>

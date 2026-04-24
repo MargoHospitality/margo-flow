@@ -75,6 +75,26 @@ export type ArrivalRecord = {
   checkin: ArrivalCheckinSummary;
 };
 
+export function getSourceBadgeClass(sourceKey: ArrivalSourceKey) {
+  if (sourceKey === 'booking') {
+    return 'border-[#003580] bg-[#003580] text-white';
+  }
+
+  if (sourceKey === 'expedia') {
+    return 'border-[#191E3B] bg-[#191E3B] text-[#FFCB4D]';
+  }
+
+  if (sourceKey === 'airbnb') {
+    return 'border-[#FF385C] bg-[#FF385C] text-white';
+  }
+
+  if (sourceKey === 'direct') {
+    return 'border-[#FECC3A] bg-[#FECC3A] text-slate-950';
+  }
+
+  return 'border-slate-200 bg-slate-50 text-slate-700';
+}
+
 export function getTransportBadgeClass(status: ArrivalTransportStatus) {
   if (status === 'confirmed') {
     return 'border-emerald-200 bg-emerald-50 text-emerald-800';
