@@ -11,12 +11,12 @@ import {
   ChevronRight,
   ChevronUp,
   CreditCard,
+  Gift,
   Globe2,
   Home,
   Hotel,
   Loader2,
   LogOut,
-  MessageCircle,
   MessageSquareText,
   Plane,
   Search,
@@ -99,6 +99,17 @@ function buildWhatsappUrl(phone: string | null) {
   const digitsOnly = phone.replace(/\D/g, '');
   if (!digitsOnly) return null;
   return `https://wa.me/${digitsOnly}`;
+}
+
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <path
+        fill="currentColor"
+        d="M16.04 4C9.41 4 4.03 9.36 4.03 15.96c0 2.1.56 4.16 1.61 5.97L4 28l6.24-1.63a12.05 12.05 0 0 0 5.8 1.48h.01c6.62 0 12-5.36 12-11.95C28.05 9.36 22.66 4 16.04 4Zm0 21.83h-.01a9.98 9.98 0 0 1-5.08-1.39l-.36-.21-3.7.97.99-3.6-.24-.37a9.86 9.86 0 0 1-1.52-5.27c0-5.49 4.45-9.94 9.93-9.94a9.94 9.94 0 0 1 9.94 9.88c0 5.48-4.46 9.93-9.95 9.93Zm5.45-7.44c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.47-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.61-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.49 0 1.46 1.07 2.87 1.22 3.07.15.2 2.1 3.2 5.09 4.49.71.31 1.27.49 1.7.63.72.23 1.37.2 1.89.12.58-.09 1.77-.72 2.02-1.42.25-.7.25-1.29.17-1.42-.07-.12-.27-.2-.57-.35Z"
+      />
+    </svg>
+  );
 }
 
 function getFlagEmoji(countryCode: string) {
@@ -569,8 +580,9 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                               {getTransportLabel(arrival.transportStatus)}
                             </Badge>
                             {arrival.transport?.isComplimentary && (
-                              <Badge variant="outline" className="border-cyan-200 bg-cyan-50 text-cyan-800">
-                                Complimentary
+                              <Badge variant="outline" className="border border-status-confirmed/30 bg-status-confirmed/10 text-status-confirmed">
+                                <Gift className="mr-1 h-3 w-3" />
+                                Free Transfer
                               </Badge>
                             )}
                             <Badge variant="outline" className={getCheckinBadgeClass(arrival.checkinStatus)}>
@@ -621,10 +633,9 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                             Expanded operational details for {arrival.guestName}.
                           </div>
                           {whatsappUrl && (
-                            <Button asChild size="sm" className="bg-[#25D366] text-white hover:bg-[#1ebe5b]">
-                              <a href={whatsappUrl} target="_blank" rel="noreferrer">
-                                <MessageCircle className="mr-2 h-4 w-4" />
-                                Contact guest on WhatsApp
+                            <Button asChild size="icon" className="h-10 w-10 rounded-full bg-[#25D366] text-white shadow-sm hover:bg-[#1ebe5b]">
+                              <a href={whatsappUrl} target="_blank" rel="noreferrer" aria-label="Contact guest on WhatsApp">
+                                <WhatsAppIcon className="h-5 w-5" />
                               </a>
                             </Button>
                           )}
@@ -786,9 +797,12 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                                 </div>
 
                                 {arrival.transport.isComplimentary && (
-                                  <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3">
-                                    <p className="text-xs uppercase tracking-wide text-cyan-700">Rate</p>
-                                    <p className="mt-1 font-medium text-cyan-900">Complimentary</p>
+                                  <div className="rounded-lg border border-status-confirmed/20 bg-status-confirmed/10 p-3">
+                                    <p className="text-xs uppercase tracking-wide text-status-confirmed">Rate</p>
+                                    <p className="mt-1 flex items-center gap-2 font-medium text-status-confirmed">
+                                      <Gift className="h-4 w-4" />
+                                      Free Transfer
+                                    </p>
                                   </div>
                                 )}
 

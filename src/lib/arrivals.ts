@@ -89,7 +89,7 @@ export function getSourceBadgeClass(sourceKey: ArrivalSourceKey) {
   }
 
   if (sourceKey === 'direct') {
-    return 'border-[#FECC3A] bg-[#FECC3A] text-slate-950';
+    return 'border-slate-200 bg-slate-100 text-slate-950';
   }
 
   return 'border-slate-200 bg-slate-50 text-slate-700';
@@ -115,7 +115,7 @@ export function getTransportLabel(status: ArrivalTransportStatus) {
 
 export function getCheckinBadgeClass(status: ArrivalCheckinStatus) {
   if (status === 'completed') {
-    return 'border-[#a8ddda] bg-[#effafa] text-[#006b69]';
+    return 'border-status-confirmed bg-status-confirmed text-status-confirmed-foreground';
   }
 
   return 'border-[#d7ebec] bg-[#f3fbfb] text-[#005663]';
