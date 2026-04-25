@@ -158,30 +158,30 @@ function formatCompactDateTime(value: string | null) {
 function getSectionClasses(section: 'reservation' | 'checkin' | 'transport') {
   if (section === 'reservation') {
     return {
-      wrapper: 'rounded-xl border border-slate-200 bg-slate-50/80 p-4',
-      title: 'bg-slate-900 text-white',
-      icon: 'text-slate-500',
-      field: 'rounded-lg border border-slate-200/90 bg-white/90 px-3 py-2.5',
-      muted: 'text-slate-500',
+      wrapper: 'rounded-xl border border-[#b9dcde] bg-[#f3fbfb] p-4 shadow-sm',
+      title: 'bg-[#005663] text-white',
+      icon: 'text-[#005663]',
+      field: 'rounded-lg border border-[#d7ebec] bg-white/90 px-3 py-2.5',
+      muted: 'text-[#005663]/75',
     };
   }
 
   if (section === 'checkin') {
     return {
-      wrapper: 'rounded-xl border border-emerald-200 bg-emerald-50/80 p-4',
-      title: 'bg-emerald-700 text-white',
-      icon: 'text-emerald-700',
-      field: 'rounded-lg border border-emerald-200/90 bg-white/85 px-3 py-2.5',
-      muted: 'text-emerald-700/80',
+      wrapper: 'rounded-xl border border-[#a8ddda] bg-[#effafa] p-4 shadow-sm',
+      title: 'bg-[#009c9a] text-white',
+      icon: 'text-[#009c9a]',
+      field: 'rounded-lg border border-[#cceae8] bg-white/90 px-3 py-2.5',
+      muted: 'text-[#007d7b]/80',
     };
   }
 
   return {
-    wrapper: 'rounded-xl border border-amber-200 bg-amber-50/80 p-4',
-    title: 'bg-amber-500 text-slate-950',
-    icon: 'text-amber-700',
-    field: 'rounded-lg border border-amber-200/90 bg-white/85 px-3 py-2.5',
-    muted: 'text-amber-800/80',
+    wrapper: 'rounded-xl border border-[#a7d6dc] bg-[#f1fafb] p-4 shadow-sm',
+    title: 'bg-[#0b6b78] text-white',
+    icon: 'text-[#0b6b78]',
+    field: 'rounded-lg border border-[#cde7ea] bg-white/90 px-3 py-2.5',
+    muted: 'text-[#0b6b78]/80',
   };
 }
 

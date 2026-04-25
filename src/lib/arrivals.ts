@@ -97,14 +97,14 @@ export function getSourceBadgeClass(sourceKey: ArrivalSourceKey) {
 
 export function getTransportBadgeClass(status: ArrivalTransportStatus) {
   if (status === 'confirmed') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+    return 'border-[#a8ddda] bg-[#effafa] text-[#006b69]';
   }
 
   if (status === 'requested') {
-    return 'border-amber-200 bg-amber-50 text-amber-800';
+    return 'border-[#a7d6dc] bg-[#f1fafb] text-[#0b6b78]';
   }
 
-  return 'border-slate-200 bg-slate-50 text-slate-700';
+  return 'border-[#d7ebec] bg-[#f3fbfb] text-[#005663]';
 }
 
 export function getTransportLabel(status: ArrivalTransportStatus) {
@@ -115,10 +115,10 @@ export function getTransportLabel(status: ArrivalTransportStatus) {
 
 export function getCheckinBadgeClass(status: ArrivalCheckinStatus) {
   if (status === 'completed') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+    return 'border-[#a8ddda] bg-[#effafa] text-[#006b69]';
   }
 
-  return 'border-slate-200 bg-slate-50 text-slate-700';
+  return 'border-[#d7ebec] bg-[#f3fbfb] text-[#005663]';
 }
 
 export function getCheckinLabel(status: ArrivalCheckinStatus) {
