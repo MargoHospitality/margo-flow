@@ -60,6 +60,7 @@ export type ArrivalRecord = {
   guestLastName: string;
   guestCountryCode: string | null;
   guestPhone: string | null;
+  guestAppToken: string | null;
   checkInDate: string;
   checkOutDate: string | null;
   reservationStatus: string;

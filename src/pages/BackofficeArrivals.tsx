@@ -15,6 +15,7 @@ import {
   Globe2,
   Home,
   Hotel,
+  Link2,
   Loader2,
   LogOut,
   MessageSquareText,
@@ -29,12 +30,30 @@ import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import margoflowLogo from '@/assets/margoflow-logo.png';
 import {
   ArrivalCheckinStatus,
@@ -63,6 +82,62 @@ type ArrivalsResponse = {
 
 type BackofficeArrivalsProps = {
   allowedRiadIds?: string[] | null;
+};
+
+type CloudbedsNoteItem = {
+  id: string;
+  text: string;
+  createdAt: string | null;
+  author: string | null;
+};
+
+type CloudbedsNotesState = {
+  isLoading: boolean;
+  loaded: boolean;
+  notes: CloudbedsNoteItem[];
+  error: string | null;
+};
+
+type CloudbedsNotesResponse = {
+  success: boolean;
+  data?: {
+    notes: CloudbedsNoteItem[];
+  };
+  error?: string;
+};
+
+type WhatsAppLinkResult = {
+  url: string;
+  displayNumber: string;
+  countryCodeApplied: string | null;
+  dialCodeApplied: string | null;
+};
+
+const COUNTRY_DIAL_CODES: Record<string, string> = {
+  AE: '971',
+  AR: '54',
+  AT: '43',
+  AU: '61',
+  BE: '32',
+  BR: '55',
+  CA: '1',
+  CH: '41',
+  CN: '86',
+  DE: '49',
+  DK: '45',
+  ES: '34',
+  FI: '358',
+  FR: '33',
+  GB: '44',
+  IE: '353',
+  IT: '39',
+  JP: '81',
+  MA: '212',
+  NL: '31',
+  NO: '47',
+  PT: '351',
+  SE: '46',
+  US: '1',
 };
 
 function getTodayIso() {
@@ -94,11 +169,44 @@ function getTransportFieldLabel(key: string) {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function buildWhatsappUrl(phone: string | null) {
+function buildWhatsappLink(phone: string | null, guestCountryCode: string | null): WhatsAppLinkResult | null {
   if (!phone) return null;
-  const digitsOnly = phone.replace(/\D/g, '');
+  const trimmedPhone = phone.trim();
+  const hasExplicitCountryCode = trimmedPhone.startsWith('+') || trimmedPhone.startsWith('00');
+  let digitsOnly = trimmedPhone.replace(/\D/g, '');
+
   if (!digitsOnly) return null;
-  return `https://wa.me/${digitsOnly}`;
+
+  if (trimmedPhone.startsWith('00')) {
+    digitsOnly = digitsOnly.replace(/^00/, '');
+  }
+
+  const normalizedCountryCode = guestCountryCode?.trim().toUpperCase() ?? '';
+  const dialCode = COUNTRY_DIAL_CODES[normalizedCountryCode] ?? null;
+  let countryCodeApplied: string | null = null;
+  let dialCodeApplied: string | null = null;
+
+  if (!hasExplicitCountryCode && dialCode && !digitsOnly.startsWith(dialCode)) {
+    digitsOnly = `${dialCode}${digitsOnly.replace(/^0+/, '')}`;
+    countryCodeApplied = normalizedCountryCode;
+    dialCodeApplied = dialCode;
+  }
+
+  return {
+    url: `https://wa.me/${digitsOnly}`,
+    displayNumber: `+${digitsOnly}`,
+    countryCodeApplied,
+    dialCodeApplied,
+  };
+}
+
+function buildGuestAppUrl(token: string | null) {
+  if (!token) return null;
+  return `${window.location.origin}/token/${token}`;
+}
+
+async function copyToClipboard(value: string) {
+  await navigator.clipboard.writeText(value);
 }
 
 function WhatsAppIcon({ className }: { className?: string }) {
@@ -166,6 +274,16 @@ function formatCompactDateTime(value: string | null) {
   return format(parseISO(value), 'dd/MM/yyyy - HH:mm');
 }
 
+function formatNoteDate(value: string | null) {
+  if (!value) return null;
+
+  try {
+    return format(parseISO(value), 'dd/MM/yyyy - HH:mm');
+  } catch {
+    return value;
+  }
+}
+
 function getSectionClasses(section: 'reservation' | 'checkin' | 'transport') {
   if (section === 'reservation') {
     return {
@@ -211,6 +329,9 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
   const [checkinFilter, setCheckinFilter] = useState<'all' | ArrivalCheckinStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedReservationId, setExpandedReservationId] = useState<string | null>(null);
+  const [pendingWhatsappLink, setPendingWhatsappLink] = useState<WhatsAppLinkResult | null>(null);
+  const [cloudbedsNotesByReservationId, setCloudbedsNotesByReservationId] = useState<Record<string, CloudbedsNotesState>>({});
+  const [selectedNotesReservationId, setSelectedNotesReservationId] = useState<string | null>(null);
 
   const selectedDateIso = searchParams.get('date') || getTodayIso();
   const selectedDate = useMemo(() => parseISO(selectedDateIso), [selectedDateIso]);
@@ -274,6 +395,61 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
     }
   }, [allowedRiadIds, checkinFilter, isActive, isManager, searchQuery, selectedDateIso, selectedRiadId, sourceFilter, transportFilter, user]);
 
+  const fetchCloudbedsNotes = useCallback(async (reservationId: string) => {
+    setCloudbedsNotesByReservationId((current) => ({
+      ...current,
+      [reservationId]: {
+        isLoading: true,
+        loaded: false,
+        notes: current[reservationId]?.notes ?? [],
+        error: null,
+      },
+    }));
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-cloudbeds-reservation-notes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ reservationId }),
+      });
+
+      const payload = await response.json().catch(() => null) as CloudbedsNotesResponse | null;
+      if (!response.ok || !payload?.success || !payload.data) {
+        throw new Error(payload?.error || 'Failed to load Cloudbeds notes');
+      }
+
+      setCloudbedsNotesByReservationId((current) => ({
+        ...current,
+        [reservationId]: {
+          isLoading: false,
+          loaded: true,
+          notes: payload.data?.notes ?? [],
+          error: null,
+        },
+      }));
+    } catch (notesError) {
+      console.error('Failed to fetch Cloudbeds notes:', notesError);
+      setCloudbedsNotesByReservationId((current) => ({
+        ...current,
+        [reservationId]: {
+          isLoading: false,
+          loaded: true,
+          notes: [],
+          error: notesError instanceof Error ? notesError.message : 'Failed to load Cloudbeds notes',
+        },
+      }));
+    }
+  }, []);
+
   useEffect(() => {
     if (user && isManager && isActive) {
       void fetchArrivals();
@@ -286,6 +462,15 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
     }
   }, [arrivals, expandedReservationId]);
 
+  useEffect(() => {
+    if (!expandedReservationId) return;
+
+    const notesState = cloudbedsNotesByReservationId[expandedReservationId];
+    if (notesState?.isLoading || notesState?.loaded) return;
+
+    void fetchCloudbedsNotes(expandedReservationId);
+  }, [cloudbedsNotesByReservationId, expandedReservationId, fetchCloudbedsNotes]);
+
   const totalCompleted = useMemo(
     () => arrivals.filter((arrival) => arrival.checkinStatus === 'completed').length,
     [arrivals],
@@ -294,6 +479,13 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
     () => arrivals.filter((arrival) => arrival.transportStatus !== 'none').length,
     [arrivals],
   );
+  const selectedNotesArrival = useMemo(
+    () => arrivals.find((arrival) => arrival.reservationId === selectedNotesReservationId) ?? null,
+    [arrivals, selectedNotesReservationId],
+  );
+  const selectedNotes = selectedNotesReservationId
+    ? cloudbedsNotesByReservationId[selectedNotesReservationId]?.notes ?? []
+    : [];
 
   const handleLogout = async () => {
     await signOut();
@@ -314,6 +506,38 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
     setTransportFilter('all');
     setCheckinFilter('all');
     setSearchQuery('');
+  };
+
+  const openWhatsappLink = (link: WhatsAppLinkResult | null) => {
+    if (!link) return;
+
+    if (link.countryCodeApplied) {
+      setPendingWhatsappLink(link);
+      return;
+    }
+
+    window.open(link.url, '_blank', 'noopener,noreferrer');
+  };
+
+  const confirmWhatsappLink = () => {
+    if (!pendingWhatsappLink) return;
+    window.open(pendingWhatsappLink.url, '_blank', 'noopener,noreferrer');
+    setPendingWhatsappLink(null);
+  };
+
+  const handleCopyGuestAppLink = async (guestAppUrl: string | null) => {
+    if (!guestAppUrl) {
+      toast.error('Guest App link unavailable for this reservation');
+      return;
+    }
+
+    try {
+      await copyToClipboard(guestAppUrl);
+      toast.success('Guest App link copied');
+    } catch (copyError) {
+      console.error('Failed to copy Guest App link:', copyError);
+      toast.error('Could not copy the Guest App link');
+    }
   };
 
   if (authLoading) {
@@ -540,7 +764,9 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
             {arrivals.map((arrival) => {
               const SourceIcon = getSourceIcon(arrival.sourceKey);
               const isExpanded = expandedReservationId === arrival.reservationId;
-              const whatsappUrl = buildWhatsappUrl(arrival.guestPhone);
+              const whatsappLink = buildWhatsappLink(arrival.guestPhone, arrival.guestCountryCode);
+              const guestAppUrl = buildGuestAppUrl(arrival.guestAppToken);
+              const notesState = cloudbedsNotesByReservationId[arrival.reservationId];
               const transportDetailEntries = Object.entries(arrival.transport?.payloadDetails ?? {})
                 .filter(([key, value]) => !['guest_email', 'guest_whatsapp', 'language'].includes(key) && value !== null && value !== undefined && `${value}`.trim().length > 0);
               const reservationStyles = getSectionClasses('reservation');
@@ -632,13 +858,48 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                           <div className="text-sm text-muted-foreground">
                             Expanded operational details for {arrival.guestName}.
                           </div>
-                          {whatsappUrl && (
-                            <Button asChild size="icon" className="h-10 w-10 rounded-full bg-[#25D366] text-white shadow-sm hover:bg-[#1ebe5b]">
-                              <a href={whatsappUrl} target="_blank" rel="noreferrer" aria-label="Contact guest on WhatsApp">
-                                <WhatsAppIcon className="h-5 w-5" />
-                              </a>
+                          <div className="flex items-center gap-2">
+                            {notesState?.isLoading && (
+                              <Badge variant="outline" className="h-10 rounded-full px-3 text-muted-foreground">
+                                Checking notes...
+                              </Badge>
+                            )}
+                            {notesState?.loaded && notesState.notes.length > 0 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-10 rounded-full"
+                                onClick={() => setSelectedNotesReservationId(arrival.reservationId)}
+                              >
+                                <MessageSquareText className="mr-2 h-4 w-4" />
+                                {notesState.notes.length} Cloudbeds note{notesState.notes.length === 1 ? '' : 's'}
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              className="h-10 w-10 rounded-full"
+                              onClick={() => handleCopyGuestAppLink(guestAppUrl)}
+                              aria-label="Copy Guest App link"
+                              title="Copy Guest App link"
+                            >
+                              <Link2 className="h-4 w-4" />
                             </Button>
-                          )}
+                            {whatsappLink && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                className="h-10 w-10 rounded-full bg-[#25D366] text-white shadow-sm hover:bg-[#1ebe5b]"
+                                onClick={() => openWhatsappLink(whatsappLink)}
+                                aria-label="Contact guest on WhatsApp"
+                                title="Contact guest on WhatsApp"
+                              >
+                                <WhatsAppIcon className="h-5 w-5" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
 
                         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
@@ -834,6 +1095,46 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
           </div>
         )}
       </main>
+      <AlertDialog open={Boolean(pendingWhatsappLink)} onOpenChange={(open) => !open && setPendingWhatsappLink(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Country code applied</AlertDialogTitle>
+            <AlertDialogDescription>
+              The phone number provided does not include an international country code. Margo Flow applied
+              {' '}+{pendingWhatsappLink?.dialCodeApplied} from the guest country
+              {' '}{pendingWhatsappLink?.countryCodeApplied}, so WhatsApp will open with {pendingWhatsappLink?.displayNumber}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmWhatsappLink}>Understood</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <Dialog open={Boolean(selectedNotesReservationId)} onOpenChange={(open) => !open && setSelectedNotesReservationId(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Cloudbeds notes</DialogTitle>
+            <DialogDescription>
+              {selectedNotesArrival
+                ? `${selectedNotesArrival.guestName} • ${selectedNotesArrival.reservationId}`
+                : 'Reservation notes from Cloudbeds'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+            {selectedNotes.map((note) => (
+              <div key={note.id} className="rounded-xl border border-border bg-muted/20 p-4">
+                <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{note.text}</p>
+                {(note.author || note.createdAt) && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {[note.author, formatNoteDate(note.createdAt)].filter(Boolean).join(' • ')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
