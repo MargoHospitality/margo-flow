@@ -61,6 +61,10 @@ type ArrivalsResponse = {
   error?: string;
 };
 
+type BackofficeArrivalsProps = {
+  allowedRiadIds?: string[] | null;
+};
+
 function getTodayIso() {
   return format(new Date(), 'yyyy-MM-dd');
 }
@@ -181,7 +185,7 @@ function getSectionClasses(section: 'reservation' | 'checkin' | 'transport') {
   };
 }
 
-export default function BackofficeArrivals() {
+export default function BackofficeArrivals({ allowedRiadIds = null }: BackofficeArrivalsProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, isLoading: authLoading, signOut, isManager, isSuperAdmin, isActive } = useAuth();
@@ -233,7 +237,7 @@ export default function BackofficeArrivals() {
         },
         body: JSON.stringify({
           date: selectedDateIso,
-          riadIds: selectedRiadId === 'all' ? undefined : [selectedRiadId],
+          riadIds: selectedRiadId === 'all' ? allowedRiadIds ?? undefined : [selectedRiadId],
           source: sourceFilter,
           transportStatus: transportFilter,
           checkinStatus: checkinFilter,
@@ -257,7 +261,7 @@ export default function BackofficeArrivals() {
     } finally {
       setIsLoadingArrivals(false);
     }
-  }, [checkinFilter, isActive, isManager, searchQuery, selectedDateIso, selectedRiadId, sourceFilter, transportFilter, user]);
+  }, [allowedRiadIds, checkinFilter, isActive, isManager, searchQuery, selectedDateIso, selectedRiadId, sourceFilter, transportFilter, user]);
 
   useEffect(() => {
     if (user && isManager && isActive) {

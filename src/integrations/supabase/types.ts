@@ -469,6 +469,7 @@ export type Database = {
       }
       riads: {
         Row: {
+          arrivals_home_enabled: boolean
           cloudbeds_property_id: string | null
           cloudbeds_sync_enabled: boolean
           created_at: string
@@ -481,6 +482,7 @@ export type Database = {
           whatsapp_enabled: boolean
         }
         Insert: {
+          arrivals_home_enabled?: boolean
           cloudbeds_property_id?: string | null
           cloudbeds_sync_enabled?: boolean
           created_at?: string
@@ -493,6 +495,7 @@ export type Database = {
           whatsapp_enabled?: boolean
         }
         Update: {
+          arrivals_home_enabled?: boolean
           cloudbeds_property_id?: string | null
           cloudbeds_sync_enabled?: boolean
           created_at?: string
