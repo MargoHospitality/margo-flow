@@ -29,6 +29,8 @@ function pickFirstString(values: unknown[]) {
 
 function extractNoteText(note: CloudbedsNote) {
   return pickFirstString([
+    note.reservationNote,
+    note.reservation_note,
     note.note,
     note.text,
     note.noteText,
@@ -40,9 +42,10 @@ function extractNoteText(note: CloudbedsNote) {
 
 function extractNoteCreatedAt(note: CloudbedsNote) {
   return pickFirstString([
+    note.dateCreated,
+    note.dateModified,
     note.createdAt,
     note.created_at,
-    note.dateCreated,
     note.date_created,
     note.noteDate,
     note.date,
@@ -157,7 +160,7 @@ Deno.serve(async (req) => {
         if (!text || isOperationalNote(text)) return null;
 
         return {
-          id: pickFirstString([note.id, note.noteID, note.noteId]) ?? `${reservationRow.reservation_id}-${index}`,
+          id: pickFirstString([note.reservationNoteID, note.reservationNoteId, note.id, note.noteID, note.noteId]) ?? `${reservationRow.reservation_id}-${index}`,
           text,
           createdAt: extractNoteCreatedAt(note),
           author: extractNoteAuthor(note),
