@@ -169,29 +169,29 @@ function formatCompactDateTime(value: string | null) {
 function getSectionClasses(section: 'reservation' | 'checkin' | 'transport') {
   if (section === 'reservation') {
     return {
-      wrapper: 'rounded-xl border border-[#b9dcde] bg-[#f3fbfb] p-4 shadow-sm',
+      wrapper: 'rounded-xl border border-[#b9dcde] bg-white p-4 shadow-sm ring-1 ring-[#005663]/5',
       title: 'bg-[#005663] text-white',
       icon: 'text-[#005663]',
-      field: 'rounded-lg border border-[#d7ebec] bg-white/90 px-3 py-2.5',
+      field: 'rounded-lg border border-slate-200 bg-white px-3 py-2.5',
       muted: 'text-[#005663]/75',
     };
   }
 
   if (section === 'checkin') {
     return {
-      wrapper: 'rounded-xl border border-[#a8ddda] bg-[#effafa] p-4 shadow-sm',
+      wrapper: 'rounded-xl border border-[#a8ddda] bg-white p-4 shadow-sm ring-1 ring-[#009c9a]/5',
       title: 'bg-[#009c9a] text-white',
       icon: 'text-[#009c9a]',
-      field: 'rounded-lg border border-[#cceae8] bg-white/90 px-3 py-2.5',
+      field: 'rounded-lg border border-slate-200 bg-white px-3 py-2.5',
       muted: 'text-[#007d7b]/80',
     };
   }
 
   return {
-    wrapper: 'rounded-xl border border-[#a7d6dc] bg-[#f1fafb] p-4 shadow-sm',
+    wrapper: 'rounded-xl border border-[#a7d6dc] bg-white p-4 shadow-sm ring-1 ring-[#0b6b78]/5',
     title: 'bg-[#0b6b78] text-white',
     icon: 'text-[#0b6b78]',
-    field: 'rounded-lg border border-[#cde7ea] bg-white/90 px-3 py-2.5',
+    field: 'rounded-lg border border-slate-200 bg-white px-3 py-2.5',
     muted: 'text-[#0b6b78]/80',
   };
 }
