@@ -876,6 +876,11 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                                 {notesState.notes.length} Cloudbeds note{notesState.notes.length === 1 ? '' : 's'}
                               </Button>
                             )}
+                            {notesState?.loaded && notesState.error && (
+                              <Badge variant="outline" className="h-10 rounded-full border-destructive/30 px-3 text-destructive">
+                                Cloudbeds notes unavailable
+                              </Badge>
+                            )}
                             <Button
                               type="button"
                               size="icon"
