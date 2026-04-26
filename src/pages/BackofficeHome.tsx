@@ -24,7 +24,13 @@ export default function BackofficeHome() {
 
   useEffect(() => {
     async function resolveHome() {
-      if (authLoading || !user || !isManager || !isActive) {
+      if (authLoading || !user || !isManager) {
+        return;
+      }
+
+      if (!isActive) {
+        setEnabledRiadIds([]);
+        setIsResolvingHome(false);
         return;
       }
 

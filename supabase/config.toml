@@ -69,8 +69,5 @@ verify_jwt = false
 [functions.stripe-checkout-webhook]
 verify_jwt = false
 
-[functions.test-manager-payment-email]
-verify_jwt = false
-
 [functions.submit-transport-request]
 verify_jwt = false

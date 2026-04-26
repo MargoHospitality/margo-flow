@@ -565,73 +565,78 @@ Deno.serve(async (req) => {
       ((checkinRows ?? []) as CheckinResponseRow[]).map((row) => [row.reservation_id, row]),
     );
 
-    const arrivals = reservations
-      .map((reservation) => {
-        const transportRowsForReservation = transportByReservationId.get(reservation.reservation_id) ?? [];
-        const { transportStatus, activeTransport } = pickTransportSummary(transportRowsForReservation);
-        const checkin = checkinByReservationId.get(reservation.reservation_id) ?? null;
-        const parsedCheckinGuests = parseCheckinGuests(checkin?.guests ?? null);
-        const source = normalizeSource(reservation.source, reservation.cloudbeds_raw);
-        const checkinStatus = checkin?.completed_at ? "completed" : "not_yet";
-        const propertyName = reservation.riad_id ? propertyNameByRiadId.get(reservation.riad_id) ?? "Property unavailable" : "Property unavailable";
-        const activeTransportOffer = getRelationValue(activeTransport?.transport_offer);
-        const guestPhone = extractGuestPhone(reservation.cloudbeds_raw, parsedCheckinGuests);
-        const guestCountry = extractGuestCountry(reservation.guest_country_code, reservation.cloudbeds_raw, parsedCheckinGuests);
-        const guestCount = extractGuestCount(reservation.cloudbeds_raw, parsedCheckinGuests);
-        const roomNames = extractRoomNames(reservation.cloudbeds_raw);
-        const guestAppLink = extractGuestAppLink(reservation.cloudbeds_raw);
+    const allArrivals = reservations.map((reservation) => {
+      const transportRowsForReservation = transportByReservationId.get(reservation.reservation_id) ?? [];
+      const { transportStatus, activeTransport } = pickTransportSummary(transportRowsForReservation);
+      const checkin = checkinByReservationId.get(reservation.reservation_id) ?? null;
+      const parsedCheckinGuests = parseCheckinGuests(checkin?.guests ?? null);
+      const source = normalizeSource(reservation.source, reservation.cloudbeds_raw);
+      const checkinStatus = checkin?.completed_at ? "completed" : "not_yet";
+      const propertyName = reservation.riad_id ? propertyNameByRiadId.get(reservation.riad_id) ?? "Property unavailable" : "Property unavailable";
+      const activeTransportOffer = getRelationValue(activeTransport?.transport_offer);
+      const guestPhone = extractGuestPhone(reservation.cloudbeds_raw, parsedCheckinGuests);
+      const guestCountry = extractGuestCountry(reservation.guest_country_code, reservation.cloudbeds_raw, parsedCheckinGuests);
+      const guestCount = extractGuestCount(reservation.cloudbeds_raw, parsedCheckinGuests);
+      const roomNames = extractRoomNames(reservation.cloudbeds_raw);
+      const guestAppLink = extractGuestAppLink(reservation.cloudbeds_raw);
 
-        return {
-          reservationId: reservation.reservation_id,
-          riadId: reservation.riad_id,
-          propertyId: reservation.property_id,
-          propertyName,
-          guestName: getGuestName(reservation),
-          guestFirstName: reservation.guest_first_name,
-          guestLastName: reservation.guest_last_name,
-          guestCountryCode: guestCountry,
-          guestPhone,
-          guestAppLink,
-          checkInDate: reservation.check_in_date,
-          checkOutDate: reservation.check_out_date,
-          reservationStatus: reservation.status,
-          guestCount,
-          roomNames,
-          sourceKey: source.sourceKey,
-          sourceLabel: source.sourceLabel,
-          sourceRaw: source.sourceRaw,
-          transportStatus,
-          checkinStatus,
-          arrivalTime: checkin?.arrival_time ?? null,
-          transport: activeTransport ? {
-            id: activeTransport.id,
-            status: activeTransport.status,
-            date: activeTransport.transport_date,
-            time: activeTransport.transport_time,
-            pax: activeTransport.pax,
-            isComplimentary: activeTransport.is_free_transfer ?? false,
-            guestComment: activeTransport.guest_comment,
-            offerName: activeTransportOffer?.name ?? null,
-            offerType: activeTransportOffer?.type ?? null,
-            payloadDetails: activeTransport.payload_details ?? null,
-          } : null,
-          checkin: checkin ? {
-            completedAt: checkin.completed_at,
-            syncedToCloudbeds: checkin.synced_to_cloudbeds ?? false,
-            cloudbedsSyncAt: checkin.cloudbeds_sync_at,
-            cloudbedsSyncError: checkin.cloudbeds_sync_error,
-            transportStatus: checkin.transport_status,
-            transportMethod: checkin.transport_method,
-            transportDetails: checkin.transport_details,
-            arrivalTime: checkin.arrival_time,
-            guests: parsedCheckinGuests,
-            restaurationPreferences: checkin.restauration_preferences,
-            beddingPreferences: checkin.bedding_preferences,
-            beddingDetails: checkin.bedding_details,
-            otherRequests: checkin.other_requests,
-          } : null,
-        };
-      })
+      return {
+        reservationId: reservation.reservation_id,
+        riadId: reservation.riad_id,
+        propertyId: reservation.property_id,
+        propertyName,
+        guestName: getGuestName(reservation),
+        guestFirstName: reservation.guest_first_name,
+        guestLastName: reservation.guest_last_name,
+        guestCountryCode: guestCountry,
+        guestPhone,
+        guestAppLink,
+        checkInDate: reservation.check_in_date,
+        checkOutDate: reservation.check_out_date,
+        reservationStatus: reservation.status,
+        guestCount,
+        roomNames,
+        sourceKey: source.sourceKey,
+        sourceLabel: source.sourceLabel,
+        sourceRaw: source.sourceRaw,
+        transportStatus,
+        checkinStatus,
+        arrivalTime: checkin?.arrival_time ?? null,
+        transport: activeTransport ? {
+          id: activeTransport.id,
+          status: activeTransport.status,
+          date: activeTransport.transport_date,
+          time: activeTransport.transport_time,
+          pax: activeTransport.pax,
+          isComplimentary: activeTransport.is_free_transfer ?? false,
+          guestComment: activeTransport.guest_comment,
+          offerName: activeTransportOffer?.name ?? null,
+          offerType: activeTransportOffer?.type ?? null,
+          payloadDetails: activeTransport.payload_details ?? null,
+        } : null,
+        checkin: checkin ? {
+          completedAt: checkin.completed_at,
+          syncedToCloudbeds: checkin.synced_to_cloudbeds ?? false,
+          cloudbedsSyncAt: checkin.cloudbeds_sync_at,
+          cloudbedsSyncError: checkin.cloudbeds_sync_error,
+          transportStatus: checkin.transport_status,
+          transportMethod: checkin.transport_method,
+          transportDetails: checkin.transport_details,
+          arrivalTime: checkin.arrival_time,
+          guests: parsedCheckinGuests,
+          restaurationPreferences: checkin.restauration_preferences,
+          beddingPreferences: checkin.bedding_preferences,
+          beddingDetails: checkin.bedding_details,
+          otherRequests: checkin.other_requests,
+        } : null,
+      };
+    });
+
+    const sources = Array.from(
+      new Map(allArrivals.map((arrival) => [arrival.sourceKey, { key: arrival.sourceKey, label: arrival.sourceLabel }])).values(),
+    );
+
+    const arrivals = allArrivals
       .filter((arrival) => {
         if (sourceFilter !== "all" && arrival.sourceKey !== sourceFilter) {
           return false;
@@ -684,10 +689,6 @@ Deno.serve(async (req) => {
         },
       });
     }
-
-    const sources = Array.from(
-      new Map(arrivals.map((arrival) => [arrival.sourceKey, { key: arrival.sourceKey, label: arrival.sourceLabel }])).values(),
-    );
 
     return jsonResponse({
       success: true,
