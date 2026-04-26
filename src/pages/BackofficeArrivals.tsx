@@ -612,20 +612,21 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
         <Card>
           <CardHeader className="p-4 pb-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
+              <div className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   <CardTitle>Arrivals</CardTitle>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                    <span>{arrivals.length} arrival{arrivals.length === 1 ? '' : 's'}</span>
-                    <span className="text-border">•</span>
-                    <span>{totalCompleted} completed</span>
-                    <span className="text-border">•</span>
-                    <span>{totalWithTransport} with transport</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-xs font-medium">
+                      {arrivals.length} arrival{arrivals.length === 1 ? '' : 's'}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                      {totalCompleted} completed
+                    </Badge>
+                    <Badge variant="outline" className="rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                      {totalWithTransport} with transport
+                    </Badge>
                   </div>
                 </div>
-                <CardDescription className="mt-1">
-                  Daily operational overview with transport, digital check-in, and booking source signals.
-                </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                 <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={() => updateDate(addDays(selectedDate, -1))}>
