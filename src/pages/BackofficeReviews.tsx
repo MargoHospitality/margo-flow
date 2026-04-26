@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { format, parseISO, subDays } from 'date-fns';
-import { AlertCircle, ArrowLeft, CarFront, CreditCard, Loader2, LogOut, MessageSquareText, RefreshCw, Shield, Star, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CreditCard, Loader2, LogOut, MessageSquareText, RefreshCw, Shield, Star, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { TransportNavButton } from '@/components/backoffice/TransportNavButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -258,12 +259,7 @@ export default function BackofficeReviews() {
                 <span className="hidden sm:inline">Arrivals</span>
               </Button>
             </Link>
-            <Link to="/backoffice/transport">
-              <Button variant="ghost" size="sm">
-                <CarFront className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Transport</span>
-              </Button>
-            </Link>
+            <TransportNavButton />
             <Link to="/backoffice/payments">
               <Button variant="ghost" size="sm">
                 <CreditCard className="h-4 w-4 mr-2" />

@@ -6,7 +6,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { RequestCard } from '@/components/backoffice/RequestCard';
-import { Loader2, LogOut, Bell, Shield, AlertCircle, Search, Calendar, Clock, CalendarDays, List, XCircle, Eye, EyeOff, CreditCard, MessageSquareText, CarFront, Users } from 'lucide-react';
+import { TransportNavButton } from '@/components/backoffice/TransportNavButton';
+import { Loader2, LogOut, Bell, Shield, AlertCircle, Search, Calendar, Clock, CalendarDays, List, XCircle, Eye, EyeOff, CreditCard, MessageSquareText, Users } from 'lucide-react';
 import margoflowLogo from '@/assets/margoflow-logo.png';
 import { format, isToday, isTomorrow, addDays, parseISO, isAfter, isBefore } from 'date-fns';
 
@@ -273,10 +274,7 @@ export default function Backoffice() {
                 <span className="hidden sm:inline">Arrivals</span>
               </Button>
             </Link>
-            <Badge variant="outline" className="hidden sm:inline-flex">
-              <CarFront className="mr-2 h-3.5 w-3.5" />
-              Transport
-            </Badge>
+            <TransportNavButton active />
             <Link to="/backoffice/payments">
               <Button variant="ghost" size="sm">
                 <CreditCard className="h-4 w-4 mr-2" />

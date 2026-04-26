@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { TransportNavButton } from '@/components/backoffice/TransportNavButton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -179,12 +180,7 @@ export default function BackofficeArrivalDetail() {
                 </Button>
               </Link>
             )}
-            <Link to="/backoffice/transport">
-              <Button variant="ghost" size="sm">
-                <CarFront className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Transport</span>
-              </Button>
-            </Link>
+            <TransportNavButton />
             <Link to="/backoffice/payments">
               <Button variant="ghost" size="sm">
                 <CreditCard className="h-4 w-4 mr-2" />
