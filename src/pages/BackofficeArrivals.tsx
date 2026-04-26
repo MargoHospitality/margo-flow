@@ -895,8 +895,9 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                               variant="outline"
                               className="h-10 w-10 rounded-full"
                               onClick={() => handleCopyGuestAppLink(guestAppUrl)}
-                              aria-label="Copy Guest App link"
-                              title="Copy Guest App link"
+                              disabled={!guestAppUrl}
+                              aria-label={guestAppUrl ? 'Copy Guest App link' : 'Guest App link unavailable'}
+                              title={guestAppUrl ? 'Copy Guest App link' : 'Guest App link unavailable'}
                             >
                               <Link2 className="h-4 w-4" />
                             </Button>

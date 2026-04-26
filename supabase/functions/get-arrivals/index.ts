@@ -69,6 +69,11 @@ type CheckinResponseRow = {
   cloudbeds_sync_error: string | null;
 };
 
+type GuestTokenRow = {
+  reservation_id: string;
+  token: string;
+};
+
 function pickFirstString(values: unknown[]) {
   for (const value of values) {
     if (typeof value === "string" && value.trim().length > 0) {
@@ -386,7 +391,11 @@ function extractCustomFieldValue(rawReservation: Record<string, unknown> | null 
   return null;
 }
 
-function extractGuestAppLink(rawReservation: Record<string, unknown> | null | undefined) {
+function buildGuestAppLinkFromToken(token: string) {
+  return `https://app.margo-hospitality.com/?token=${encodeURIComponent(token)}`;
+}
+
+function extractGuestAppLink(rawReservation: Record<string, unknown> | null | undefined, fallbackToken: string | null | undefined) {
   const link = extractCustomFieldValue(rawReservation, [
     "guest_app_link",
     "link_guest_app",
@@ -401,7 +410,7 @@ function extractGuestAppLink(rawReservation: Record<string, unknown> | null | un
     "guest_app_token",
   ]);
 
-  return token ? `https://app.margo-hospitality.com/?token=${encodeURIComponent(token)}` : null;
+  return token ? buildGuestAppLinkFromToken(token) : fallbackToken ? buildGuestAppLinkFromToken(fallbackToken) : null;
 }
 
 function pickTransportSummary(transportRequests: TransportRequestRow[]) {
@@ -533,6 +542,7 @@ Deno.serve(async (req) => {
     const [
       { data: transportRows, error: transportError },
       { data: checkinRows, error: checkinError },
+      { data: guestTokenRows, error: guestTokenError },
     ] = await Promise.all([
       supabaseAdmin
         .from("transport_requests")
@@ -542,6 +552,13 @@ Deno.serve(async (req) => {
         .from("checkin_responses")
         .select("reservation_id, transport_status, transport_method, transport_details, arrival_time, guests, restauration_preferences, bedding_preferences, bedding_details, other_requests, completed_at, synced_to_cloudbeds, cloudbeds_sync_at, cloudbeds_sync_error")
         .in("reservation_id", reservationIds),
+      supabaseAdmin
+        .from("guest_tokens")
+        .select("reservation_id, token")
+        .in("reservation_id", reservationIds)
+        .eq("revoked", false)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false }),
     ]);
 
     if (transportError) {
@@ -554,6 +571,11 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "Failed to load digital check-in data" }, 500);
     }
 
+    if (guestTokenError) {
+      console.error("[get-arrivals] Failed to load guest app tokens:", guestTokenError);
+      return jsonResponse({ success: false, error: "Failed to load Guest App links" }, 500);
+    }
+
     const transportByReservationId = new Map<string, TransportRequestRow[]>();
     for (const rawRow of (transportRows ?? []) as TransportRequestRow[]) {
       const current = transportByReservationId.get(rawRow.reservation_id) ?? [];
@@ -564,6 +586,12 @@ Deno.serve(async (req) => {
     const checkinByReservationId = new Map(
       ((checkinRows ?? []) as CheckinResponseRow[]).map((row) => [row.reservation_id, row]),
     );
+    const guestTokenByReservationId = new Map<string, string>();
+    for (const row of (guestTokenRows ?? []) as GuestTokenRow[]) {
+      if (!guestTokenByReservationId.has(row.reservation_id)) {
+        guestTokenByReservationId.set(row.reservation_id, row.token);
+      }
+    }
 
     const allArrivals = reservations.map((reservation) => {
       const transportRowsForReservation = transportByReservationId.get(reservation.reservation_id) ?? [];
@@ -578,7 +606,10 @@ Deno.serve(async (req) => {
       const guestCountry = extractGuestCountry(reservation.guest_country_code, reservation.cloudbeds_raw, parsedCheckinGuests);
       const guestCount = extractGuestCount(reservation.cloudbeds_raw, parsedCheckinGuests);
       const roomNames = extractRoomNames(reservation.cloudbeds_raw);
-      const guestAppLink = extractGuestAppLink(reservation.cloudbeds_raw);
+      const guestAppLink = extractGuestAppLink(
+        reservation.cloudbeds_raw,
+        guestTokenByReservationId.get(reservation.reservation_id),
+      );
 
       return {
         reservationId: reservation.reservation_id,
