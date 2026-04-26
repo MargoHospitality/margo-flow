@@ -313,13 +313,15 @@ function getSectionClasses(section: 'reservation' | 'checkin' | 'transport') {
 export default function BackofficeArrivals({ allowedRiadIds = null }: BackofficeArrivalsProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, isLoading: authLoading, signOut, isManager, isSuperAdmin, isActive } = useAuth();
+  const { user, isLoading: authLoading, signOut, isManager, isSuperAdmin, isActive, riadIds } = useAuth();
   const [arrivals, setArrivals] = useState<ArrivalRecord[]>([]);
   const [properties, setProperties] = useState<ArrivalProperty[]>([]);
   const [sources, setSources] = useState<ArrivalSourceOption[]>([]);
   const [isLoadingArrivals, setIsLoadingArrivals] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRiadId, setSelectedRiadId] = useState('all');
+  const accessibleRiadIds = useMemo(() => allowedRiadIds ?? riadIds, [allowedRiadIds, riadIds]);
+  const defaultRiadId = !isSuperAdmin && accessibleRiadIds.length === 1 ? accessibleRiadIds[0] : 'all';
+  const [selectedRiadId, setSelectedRiadId] = useState(defaultRiadId);
   const [sourceFilter, setSourceFilter] = useState<'all' | ArrivalSourceKey>('all');
   const [transportFilter, setTransportFilter] = useState<'all' | ArrivalTransportStatus>('all');
   const [checkinFilter, setCheckinFilter] = useState<'all' | ArrivalCheckinStatus>('all');
@@ -331,6 +333,16 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
 
   const selectedDateIso = searchParams.get('date') || getTodayIso();
   const selectedDate = useMemo(() => parseISO(selectedDateIso), [selectedDateIso]);
+
+  useEffect(() => {
+    setSelectedRiadId((current) => {
+      if (current !== 'all' && accessibleRiadIds.includes(current)) {
+        return current;
+      }
+
+      return defaultRiadId;
+    });
+  }, [accessibleRiadIds, defaultRiadId]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -497,7 +509,7 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
   };
 
   const clearFilters = () => {
-    setSelectedRiadId('all');
+    setSelectedRiadId(defaultRiadId);
     setSourceFilter('all');
     setTransportFilter('all');
     setCheckinFilter('all');
