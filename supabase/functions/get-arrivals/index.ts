@@ -218,22 +218,53 @@ function extractGuestCount(rawReservation: Record<string, unknown> | null | unde
 function extractRoomNames(rawReservation: Record<string, unknown> | null | undefined) {
   const names = new Set<string>();
   const assigned = rawReservation?.assigned;
+  const unassigned = rawReservation?.unassigned;
+
+  const addRoomLabel = (room: unknown) => {
+    if (!room || typeof room !== "object") return;
+    const roomRecord = room as Record<string, unknown>;
+    const label = pickFirstString([
+      roomRecord.roomName,
+      roomRecord.roomTypeName,
+      roomRecord.roomTypeNameShort,
+      roomRecord.roomType,
+      roomRecord.room_type_name,
+      roomRecord.unitName,
+      roomRecord.name,
+    ]);
+
+    if (label) {
+      names.add(label);
+    }
+  };
 
   if (Array.isArray(assigned)) {
     for (const room of assigned) {
-      if (!room || typeof room !== "object") continue;
-      const roomRecord = room as Record<string, unknown>;
-      const label = pickFirstString([
-        roomRecord.roomName,
-        roomRecord.roomTypeName,
-        roomRecord.roomType,
-        roomRecord.room_type_name,
-        roomRecord.unitName,
-        roomRecord.name,
-      ]);
+      addRoomLabel(room);
+    }
+  }
 
-      if (label) {
-        names.add(label);
+  if (Array.isArray(unassigned)) {
+    for (const room of unassigned) {
+      addRoomLabel(room);
+    }
+  }
+
+  const guests = extractGuestList(rawReservation);
+  for (const guest of guests) {
+    addRoomLabel(guest);
+
+    const guestRooms = guest.rooms;
+    if (Array.isArray(guestRooms)) {
+      for (const room of guestRooms) {
+        addRoomLabel(room);
+      }
+    }
+
+    const guestUnassignedRooms = guest.unassignedRooms;
+    if (Array.isArray(guestUnassignedRooms)) {
+      for (const room of guestUnassignedRooms) {
+        addRoomLabel(room);
       }
     }
   }
