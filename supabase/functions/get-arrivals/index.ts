@@ -69,12 +69,6 @@ type CheckinResponseRow = {
   cloudbeds_sync_error: string | null;
 };
 
-type GuestTokenRow = {
-  reservation_id: string;
-  property_id: string;
-  token: string;
-};
-
 function pickFirstString(values: unknown[]) {
   for (const value of values) {
     if (typeof value === "string" && value.trim().length > 0) {
@@ -316,8 +310,47 @@ function getRelationValue<T>(value: T | T[] | null | undefined) {
   return value ?? null;
 }
 
-function getGuestTokenKey(reservationId: string, propertyId: string) {
-  return `${propertyId}:${reservationId}`;
+function normalizeCustomFieldName(value: unknown) {
+  if (typeof value !== "string") return "";
+  return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function extractCustomFieldValue(rawReservation: Record<string, unknown> | null | undefined, fieldName: string) {
+  if (!rawReservation) return null;
+  const targetFieldName = normalizeCustomFieldName(fieldName);
+  const customFields = rawReservation.customFields;
+
+  if (customFields && typeof customFields === "object" && !Array.isArray(customFields)) {
+    const record = customFields as Record<string, unknown>;
+    for (const [key, value] of Object.entries(record)) {
+      if (normalizeCustomFieldName(key) === targetFieldName) {
+        return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+      }
+    }
+  }
+
+  if (Array.isArray(customFields)) {
+    for (const field of customFields) {
+      if (!field || typeof field !== "object") continue;
+      const record = field as Record<string, unknown>;
+      const name = pickFirstString([
+        record.customFieldName,
+        record.fieldName,
+        record.name,
+        record.label,
+      ]);
+
+      if (normalizeCustomFieldName(name) !== targetFieldName) continue;
+
+      return pickFirstString([
+        record.customFieldValue,
+        record.fieldValue,
+        record.value,
+      ]);
+    }
+  }
+
+  return null;
 }
 
 function pickTransportSummary(transportRequests: TransportRequestRow[]) {
@@ -449,7 +482,6 @@ Deno.serve(async (req) => {
     const [
       { data: transportRows, error: transportError },
       { data: checkinRows, error: checkinError },
-      { data: guestTokenRows, error: guestTokenError },
     ] = await Promise.all([
       supabaseAdmin
         .from("transport_requests")
@@ -459,13 +491,6 @@ Deno.serve(async (req) => {
         .from("checkin_responses")
         .select("reservation_id, transport_status, transport_method, transport_details, arrival_time, guests, restauration_preferences, bedding_preferences, bedding_details, other_requests, completed_at, synced_to_cloudbeds, cloudbeds_sync_at, cloudbeds_sync_error")
         .in("reservation_id", reservationIds),
-      supabaseAdmin
-        .from("guest_tokens")
-        .select("reservation_id, property_id, token")
-        .in("reservation_id", reservationIds)
-        .eq("revoked", false)
-        .gt("expires_at", new Date().toISOString())
-        .order("created_at", { ascending: false }),
     ]);
 
     if (transportError) {
@@ -478,10 +503,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "Failed to load digital check-in data" }, 500);
     }
 
-    if (guestTokenError) {
-      console.error("[get-arrivals] Failed to load guest app tokens:", guestTokenError);
-    }
-
     const transportByReservationId = new Map<string, TransportRequestRow[]>();
     for (const rawRow of (transportRows ?? []) as TransportRequestRow[]) {
       const current = transportByReservationId.get(rawRow.reservation_id) ?? [];
@@ -492,39 +513,6 @@ Deno.serve(async (req) => {
     const checkinByReservationId = new Map(
       ((checkinRows ?? []) as CheckinResponseRow[]).map((row) => [row.reservation_id, row]),
     );
-
-    const guestTokenByReservationKey = new Map<string, string>();
-    for (const tokenRow of (guestTokenRows ?? []) as GuestTokenRow[]) {
-      const key = getGuestTokenKey(tokenRow.reservation_id, tokenRow.property_id);
-      if (!guestTokenByReservationKey.has(key)) {
-        guestTokenByReservationKey.set(key, tokenRow.token);
-      }
-    }
-
-    for (const reservation of reservations) {
-      const key = getGuestTokenKey(reservation.reservation_id, reservation.property_id);
-      if (guestTokenByReservationKey.has(key)) continue;
-
-      const { data: generatedToken, error: generatedTokenError } = await supabaseAdmin.rpc("generate_guest_token", {
-        p_reservation_id: reservation.reservation_id,
-        p_property_id: reservation.property_id,
-        p_guest_name: getGuestName(reservation),
-        p_check_in_date: reservation.check_in_date,
-        p_check_out_date: reservation.check_out_date,
-        p_expires_days: 90,
-      });
-
-      if (generatedTokenError || !generatedToken?.success || typeof generatedToken.token !== "string") {
-        console.error("[get-arrivals] Failed to generate guest app token:", {
-          reservation_id: reservation.reservation_id,
-          property_id: reservation.property_id,
-          error: generatedTokenError?.message ?? generatedToken?.error ?? "Unknown token generation error",
-        });
-        continue;
-      }
-
-      guestTokenByReservationKey.set(key, generatedToken.token);
-    }
 
     const arrivals = reservations
       .map((reservation) => {
@@ -540,7 +528,7 @@ Deno.serve(async (req) => {
         const guestCountry = extractGuestCountry(reservation.guest_country_code, reservation.cloudbeds_raw, parsedCheckinGuests);
         const guestCount = extractGuestCount(reservation.cloudbeds_raw, parsedCheckinGuests);
         const roomNames = extractRoomNames(reservation.cloudbeds_raw);
-        const guestAppToken = guestTokenByReservationKey.get(getGuestTokenKey(reservation.reservation_id, reservation.property_id)) ?? null;
+        const guestAppLink = extractCustomFieldValue(reservation.cloudbeds_raw, "guest_app_link");
 
         return {
           reservationId: reservation.reservation_id,
@@ -552,7 +540,7 @@ Deno.serve(async (req) => {
           guestLastName: reservation.guest_last_name,
           guestCountryCode: guestCountry,
           guestPhone,
-          guestAppToken,
+          guestAppLink,
           checkInDate: reservation.check_in_date,
           checkOutDate: reservation.check_out_date,
           reservationStatus: reservation.status,

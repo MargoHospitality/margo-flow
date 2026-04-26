@@ -200,11 +200,6 @@ function buildWhatsappLink(phone: string | null, guestCountryCode: string | null
   };
 }
 
-function buildGuestAppUrl(token: string | null) {
-  if (!token) return null;
-  return `${window.location.origin}/token/${token}`;
-}
-
 async function copyToClipboard(value: string) {
   await navigator.clipboard.writeText(value);
 }
@@ -765,7 +760,7 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
               const SourceIcon = getSourceIcon(arrival.sourceKey);
               const isExpanded = expandedReservationId === arrival.reservationId;
               const whatsappLink = buildWhatsappLink(arrival.guestPhone, arrival.guestCountryCode);
-              const guestAppUrl = buildGuestAppUrl(arrival.guestAppToken);
+              const guestAppUrl = arrival.guestAppLink;
               const notesState = cloudbedsNotesByReservationId[arrival.reservationId];
               const transportDetailEntries = Object.entries(arrival.transport?.payloadDetails ?? {})
                 .filter(([key, value]) => !['guest_email', 'guest_whatsapp', 'language'].includes(key) && value !== null && value !== undefined && `${value}`.trim().length > 0);
