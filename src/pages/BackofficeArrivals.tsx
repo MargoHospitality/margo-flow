@@ -610,21 +610,30 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
 
       <main className="flex-1 container mx-auto px-4 py-6 space-y-6">
         <Card>
-          <CardHeader className="gap-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <CardTitle>Arrivals</CardTitle>
-                <CardDescription>
+          <CardHeader className="p-4 pb-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
+                  <CardTitle>Arrivals</CardTitle>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    <span>{arrivals.length} arrival{arrivals.length === 1 ? '' : 's'}</span>
+                    <span className="text-border">•</span>
+                    <span>{totalCompleted} completed</span>
+                    <span className="text-border">•</span>
+                    <span>{totalWithTransport} with transport</span>
+                  </div>
+                </div>
+                <CardDescription className="mt-1">
                   Daily operational overview with transport, digital check-in, and booking source signals.
                 </CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="icon" onClick={() => updateDate(addDays(selectedDate, -1))}>
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={() => updateDate(addDays(selectedDate, -1))}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button type="button" variant="outline" className="min-w-[220px] justify-start text-left font-normal">
+                    <Button type="button" variant="outline" className="h-9 min-w-[190px] justify-start text-left font-normal">
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {format(selectedDate, 'PPP')}
                     </Button>
@@ -633,21 +642,21 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                     <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && updateDate(date)} initialFocus />
                   </PopoverContent>
                 </Popover>
-                <Button type="button" variant="outline" size="icon" onClick={() => updateDate(addDays(selectedDate, 1))}>
+                <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={() => updateDate(addDays(selectedDate, 1))}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-                <Button type="button" variant="secondary" onClick={() => updateDate(parseISO(getTodayIso()))}>
+                <Button type="button" variant="secondary" className="h-9" onClick={() => updateDate(parseISO(getTodayIso()))}>
                   Today
                 </Button>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <div className="space-y-2 xl:col-span-1">
-                <Label>Property</Label>
+          <CardContent className="px-4 pb-4 pt-0">
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(170px,1fr)_minmax(160px,1fr)_minmax(190px,1fr)_minmax(220px,1fr)_minmax(220px,1fr)_auto]">
+              <div>
+                <Label className="sr-only">Property</Label>
                 <Select value={selectedRiadId} onValueChange={setSelectedRiadId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue placeholder="All properties" />
                   </SelectTrigger>
                   <SelectContent>
@@ -661,10 +670,10 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Source</Label>
+              <div>
+                <Label className="sr-only">Source</Label>
                 <Select value={sourceFilter} onValueChange={(value) => setSourceFilter(value as 'all' | ArrivalSourceKey)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue placeholder="All sources" />
                   </SelectTrigger>
                   <SelectContent>
@@ -678,10 +687,10 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Transport</Label>
+              <div>
+                <Label className="sr-only">Transport</Label>
                 <Select value={transportFilter} onValueChange={(value) => setTransportFilter(value as 'all' | ArrivalTransportStatus)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -693,10 +702,10 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Digital check-in</Label>
+              <div>
+                <Label className="sr-only">Digital check-in</Label>
                 <Select value={checkinFilter} onValueChange={(value) => setCheckinFilter(value as 'all' | ArrivalCheckinStatus)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -707,25 +716,20 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Search</Label>
+              <div>
+                <Label className="sr-only">Search</Label>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    className="pl-9"
+                    className="h-10 pl-9"
                     placeholder="Guest or reservation ID"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                   />
                 </div>
               </div>
-            </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              <span>{arrivals.length} arrival{arrivals.length === 1 ? '' : 's'}</span>
-              <span>{totalCompleted} completed check-in{totalCompleted === 1 ? '' : 's'}</span>
-              <span>{totalWithTransport} with transport</span>
-              <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+              <Button type="button" variant="ghost" size="sm" className="h-10 justify-start px-3 xl:justify-center" onClick={clearFilters}>
                 Clear filters
               </Button>
             </div>
