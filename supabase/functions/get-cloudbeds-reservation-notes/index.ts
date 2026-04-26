@@ -65,8 +65,7 @@ function extractNoteAuthor(note: CloudbedsNote) {
 function isOperationalNote(text: string) {
   const normalized = text.trimStart().toLowerCase();
   return (
-    normalized.startsWith("--- check-in guest app ---\n[margo flow]") ||
-    normalized.startsWith("--- check-in guest app ---\r\n[margo flow]") ||
+    normalized.startsWith("--- check-in guest app ---") ||
     normalized.startsWith("[margo flow][request_id:") ||
     normalized.startsWith("[margo flow] transport confirmed") ||
     normalized.includes("digital check-in") ||
