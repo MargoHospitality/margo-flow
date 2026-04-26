@@ -346,15 +346,17 @@ function normalizeCustomFieldName(value: unknown) {
   return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
 
-function extractCustomFieldValue(rawReservation: Record<string, unknown> | null | undefined, fieldName: string) {
+function extractCustomFieldValue(rawReservation: Record<string, unknown> | null | undefined, fieldName: string | string[]) {
   if (!rawReservation) return null;
-  const targetFieldName = normalizeCustomFieldName(fieldName);
+  const targetFieldNames = new Set(
+    (Array.isArray(fieldName) ? fieldName : [fieldName]).map(normalizeCustomFieldName),
+  );
   const customFields = rawReservation.customFields;
 
   if (customFields && typeof customFields === "object" && !Array.isArray(customFields)) {
     const record = customFields as Record<string, unknown>;
     for (const [key, value] of Object.entries(record)) {
-      if (normalizeCustomFieldName(key) === targetFieldName) {
+      if (targetFieldNames.has(normalizeCustomFieldName(key))) {
         return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
       }
     }
@@ -371,7 +373,7 @@ function extractCustomFieldValue(rawReservation: Record<string, unknown> | null 
         record.label,
       ]);
 
-      if (normalizeCustomFieldName(name) !== targetFieldName) continue;
+      if (!targetFieldNames.has(normalizeCustomFieldName(name))) continue;
 
       return pickFirstString([
         record.customFieldValue,
@@ -382,6 +384,24 @@ function extractCustomFieldValue(rawReservation: Record<string, unknown> | null 
   }
 
   return null;
+}
+
+function extractGuestAppLink(rawReservation: Record<string, unknown> | null | undefined) {
+  const link = extractCustomFieldValue(rawReservation, [
+    "guest_app_link",
+    "link_guest_app",
+    "guest_app_url",
+    "guest_app",
+  ]);
+
+  if (link) return link;
+
+  const token = extractCustomFieldValue(rawReservation, [
+    "token_guest_app",
+    "guest_app_token",
+  ]);
+
+  return token ? `https://app.margo-hospitality.com/?token=${encodeURIComponent(token)}` : null;
 }
 
 function pickTransportSummary(transportRequests: TransportRequestRow[]) {
@@ -559,7 +579,7 @@ Deno.serve(async (req) => {
         const guestCountry = extractGuestCountry(reservation.guest_country_code, reservation.cloudbeds_raw, parsedCheckinGuests);
         const guestCount = extractGuestCount(reservation.cloudbeds_raw, parsedCheckinGuests);
         const roomNames = extractRoomNames(reservation.cloudbeds_raw);
-        const guestAppLink = extractCustomFieldValue(reservation.cloudbeds_raw, "guest_app_link");
+        const guestAppLink = extractGuestAppLink(reservation.cloudbeds_raw);
 
         return {
           reservationId: reservation.reservation_id,
