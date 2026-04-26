@@ -14,9 +14,11 @@ import {
   Search,
   Send,
   Shield,
+  Users,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { TransportNavButton } from '@/components/backoffice/TransportNavButton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -696,6 +698,13 @@ export default function BackofficePayments() {
                 </Button>
               </Link>
             )}
+            <Link to="/backoffice">
+              <Button variant="ghost" size="sm">
+                <Users className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Arrivals</span>
+              </Button>
+            </Link>
+            <TransportNavButton />
             <Link to="/backoffice/reviews">
               <Button variant="ghost" size="sm">
                 <MessageSquareText className="h-4 w-4 mr-2" />

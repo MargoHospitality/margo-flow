@@ -29,6 +29,7 @@ interface Riad {
   manager_email: string | null;
   manager_whatsapp: string | null;
   is_active: boolean;
+  arrivals_home_enabled: boolean;
   payment_enabled: boolean;
   payment_label: string;
   stripe_publishable_key: string;
@@ -42,6 +43,7 @@ const EMPTY_RIAD_FORM = {
   cloudbeds_property_id: '',
   manager_email: '',
   manager_whatsapp: '',
+  arrivals_home_enabled: false,
   payment_enabled: false,
   payment_label: 'Card payment',
   stripe_publishable_key: '',
@@ -554,7 +556,8 @@ export default function Admin() {
             name: riad.name,
             cloudbeds_property_id: riad.cloudbeds_property_id || null,
             manager_email: riad.manager_email || null,
-            manager_whatsapp: riad.manager_whatsapp || null
+            manager_whatsapp: riad.manager_whatsapp || null,
+            arrivals_home_enabled: Boolean(riad.arrivals_home_enabled)
           })
           .eq('id', editingRiad.id);
 
@@ -582,7 +585,8 @@ export default function Admin() {
             name: riad.name!,
             cloudbeds_property_id: riad.cloudbeds_property_id || null,
             manager_email: riad.manager_email || null,
-            manager_whatsapp: riad.manager_whatsapp || null
+            manager_whatsapp: riad.manager_whatsapp || null,
+            arrivals_home_enabled: Boolean(riad.arrivals_home_enabled)
           })
           .select('id')
           .single();
@@ -955,11 +959,27 @@ export default function Admin() {
           <TabsContent value="riads" className="space-y-6">
             {/* Add Riad */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Building className="h-5 w-5" />
-                  {editingRiad ? 'Edit Riad' : 'Add New Riad'}
-                </CardTitle>
+              <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Building className="h-5 w-5" />
+                    {editingRiad ? 'Edit Riad' : 'Add New Riad'}
+                  </CardTitle>
+                </div>
+                <div className="flex items-center gap-3 rounded-full border border-border/70 bg-muted/30 px-4 py-2">
+                  <div className="text-right">
+                    <p className="text-sm font-medium">Arrivals home</p>
+                    <p className="text-xs text-muted-foreground">Default view for managers</p>
+                  </div>
+                  <Switch
+                    checked={editingRiad ? editingRiad.arrivals_home_enabled : newRiad.arrivals_home_enabled}
+                    onCheckedChange={(checked) => editingRiad
+                      ? setEditingRiad({ ...editingRiad, arrivals_home_enabled: checked })
+                      : setNewRiad({ ...newRiad, arrivals_home_enabled: checked })
+                    }
+                    aria-label="Enable Arrivals as the default home view for this property"
+                  />
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -1138,6 +1158,9 @@ export default function Admin() {
                             </Badge>
                             <Badge variant={riad.payment_enabled ? 'default' : 'secondary'}>
                               {riad.payment_enabled ? 'Payments ON' : 'Payments OFF'}
+                            </Badge>
+                            <Badge variant={riad.arrivals_home_enabled ? 'default' : 'secondary'}>
+                              {riad.arrivals_home_enabled ? 'Arrivals ON' : 'Arrivals OFF'}
                             </Badge>
                             {riad.payment_enabled && riad.stripe_secret_key_alias && (
                               <Badge variant="outline">{riad.stripe_secret_key_alias}</Badge>
