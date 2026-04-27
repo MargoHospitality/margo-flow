@@ -734,9 +734,18 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    type="search"
+                    name="margo-arrivals-reservation-search"
                     className="h-10 pl-9"
                     placeholder="Guest or reservation ID"
                     value={searchQuery}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    data-1p-ignore="true"
+                    data-lpignore="true"
+                    data-form-type="other"
                     onChange={(event) => setSearchQuery(event.target.value)}
                   />
                 </div>
