@@ -288,6 +288,58 @@ function extractRoomNames(rawReservation: Record<string, unknown> | null | undef
   return Array.from(names);
 }
 
+function hasOperationalReservationDetails(rawReservation: Record<string, unknown> | null | undefined) {
+  if (!rawReservation || typeof rawReservation !== "object") return false;
+
+  return extractGuestList(rawReservation).length > 0 || extractRoomNames(rawReservation).length > 0;
+}
+
+async function fetchLiveCloudbedsReservation(
+  cloudbedsApiKey: string,
+  propertyId: string,
+  reservationId: string,
+) {
+  const url = new URL("https://api.cloudbeds.com/api/v1.3/getReservation");
+  url.searchParams.set("propertyID", propertyId);
+  url.searchParams.set("reservationID", reservationId);
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${cloudbedsApiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`[get-arrivals] Live Cloudbeds fetch failed for ${reservationId}: ${response.status}`);
+      return null;
+    }
+
+    const payload = await response.json();
+    if (!payload?.success || !payload?.data || typeof payload.data !== "object") {
+      console.warn(`[get-arrivals] Live Cloudbeds payload unavailable for ${reservationId}`);
+      return null;
+    }
+
+    return payload.data as Record<string, unknown>;
+  } catch (error) {
+    console.warn(`[get-arrivals] Live Cloudbeds fetch errored for ${reservationId}:`, error);
+    return null;
+  }
+}
+
+async function mapWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<void>,
+) {
+  for (let index = 0; index < items.length; index += concurrency) {
+    await Promise.all(items.slice(index, index + concurrency).map(mapper));
+  }
+}
+
 function extractSourceCandidate(rawReservation: Record<string, unknown> | null | undefined, rawSource: string | null | undefined) {
   return pickFirstString([
     rawReservation?.thirdPartySource,
@@ -500,6 +552,9 @@ Deno.serve(async (req) => {
     const propertyNameByRiadId = new Map(
       accessibleRiads.map((riad) => [riad.id, riad.name]),
     );
+    const cloudbedsPropertyIdByRiadId = new Map(
+      accessibleRiads.map((riad) => [riad.id, riad.cloudbeds_property_id]),
+    );
     const accessibleRiadIds = accessibleRiads.map((riad) => riad.id);
 
     let reservationsQuery = supabaseAdmin
@@ -593,21 +648,73 @@ Deno.serve(async (req) => {
       }
     }
 
+    const liveRawByReservationId = new Map<string, Record<string, unknown>>();
+    const cloudbedsApiKey = Deno.env.get("CLOUDBEDS_API_KEY");
+
+    if (cloudbedsApiKey) {
+      await mapWithConcurrency(reservations, 4, async (reservation) => {
+        const checkin = checkinByReservationId.get(reservation.reservation_id) ?? null;
+        const parsedCheckinGuests = parseCheckinGuests(checkin?.guests ?? null);
+        const cachedGuestCountry = extractGuestCountry(reservation.guest_country_code, reservation.cloudbeds_raw, parsedCheckinGuests);
+        const cachedRoomNames = extractRoomNames(reservation.cloudbeds_raw);
+        const cachedHasOperationalDetails = hasOperationalReservationDetails(reservation.cloudbeds_raw);
+
+        if (cachedHasOperationalDetails && cachedGuestCountry && cachedRoomNames.length > 0) {
+          return;
+        }
+
+        const propertyId = reservation.riad_id
+          ? cloudbedsPropertyIdByRiadId.get(reservation.riad_id)
+          : reservation.property_id;
+
+        if (!propertyId) {
+          return;
+        }
+
+        const liveReservation = await fetchLiveCloudbedsReservation(
+          cloudbedsApiKey,
+          propertyId,
+          reservation.reservation_id,
+        );
+
+        if (!liveReservation) {
+          return;
+        }
+
+        liveRawByReservationId.set(reservation.reservation_id, liveReservation);
+
+        const liveGuestCountry = extractGuestCountry(reservation.guest_country_code, liveReservation, parsedCheckinGuests);
+        const { error: updateError } = await supabaseAdmin
+          .from("reservations")
+          .update({
+            cloudbeds_raw: liveReservation,
+            guest_country_code: liveGuestCountry ?? reservation.guest_country_code,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("reservation_id", reservation.reservation_id);
+
+        if (updateError) {
+          console.warn(`[get-arrivals] Failed to refresh cached Cloudbeds reservation ${reservation.reservation_id}:`, updateError);
+        }
+      });
+    }
+
     const allArrivals = reservations.map((reservation) => {
       const transportRowsForReservation = transportByReservationId.get(reservation.reservation_id) ?? [];
       const { transportStatus, activeTransport } = pickTransportSummary(transportRowsForReservation);
       const checkin = checkinByReservationId.get(reservation.reservation_id) ?? null;
       const parsedCheckinGuests = parseCheckinGuests(checkin?.guests ?? null);
-      const source = normalizeSource(reservation.source, reservation.cloudbeds_raw);
+      const effectiveRawReservation = liveRawByReservationId.get(reservation.reservation_id) ?? reservation.cloudbeds_raw;
+      const source = normalizeSource(reservation.source, effectiveRawReservation);
       const checkinStatus = checkin?.completed_at ? "completed" : "not_yet";
       const propertyName = reservation.riad_id ? propertyNameByRiadId.get(reservation.riad_id) ?? "Property unavailable" : "Property unavailable";
       const activeTransportOffer = getRelationValue(activeTransport?.transport_offer);
-      const guestPhone = extractGuestPhone(reservation.cloudbeds_raw, parsedCheckinGuests);
-      const guestCountry = extractGuestCountry(reservation.guest_country_code, reservation.cloudbeds_raw, parsedCheckinGuests);
-      const guestCount = extractGuestCount(reservation.cloudbeds_raw, parsedCheckinGuests);
-      const roomNames = extractRoomNames(reservation.cloudbeds_raw);
+      const guestPhone = extractGuestPhone(effectiveRawReservation, parsedCheckinGuests);
+      const guestCountry = extractGuestCountry(reservation.guest_country_code, effectiveRawReservation, parsedCheckinGuests);
+      const guestCount = extractGuestCount(effectiveRawReservation, parsedCheckinGuests);
+      const roomNames = extractRoomNames(effectiveRawReservation);
       const guestAppLink = extractGuestAppLink(
-        reservation.cloudbeds_raw,
+        effectiveRawReservation,
         guestTokenByReservationId.get(reservation.reservation_id),
       );
 

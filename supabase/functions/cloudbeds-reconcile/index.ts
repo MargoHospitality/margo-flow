@@ -39,6 +39,20 @@ interface CloudbedsReservation {
   [key: string]: unknown;
 }
 
+function hasOperationalReservationDetails(rawReservation: unknown) {
+  if (!rawReservation || typeof rawReservation !== 'object') return false;
+  const record = rawReservation as Record<string, unknown>;
+
+  if (Array.isArray(record.assigned) && record.assigned.length > 0) return true;
+  if (Array.isArray(record.unassigned) && record.unassigned.length > 0) return true;
+
+  const guestList = record.guestList;
+  if (Array.isArray(guestList) && guestList.length > 0) return true;
+  if (guestList && typeof guestList === 'object' && Object.keys(guestList).length > 0) return true;
+
+  return false;
+}
+
 async function fetchAllReservations(
   cloudbedsApiKey: string,
   propertyId: string,
@@ -297,13 +311,20 @@ serve(async (req) => {
           // Check if reservation exists
           const { data: existingRes } = await supabase
             .from('reservations')
-            .select('id, check_in_date, status')
+            .select('id, check_in_date, status, guest_country_code, cloudbeds_raw')
             .eq('reservation_id', reservationId)
             .eq('riad_id', riad.id)
             .maybeSingle();
 
           const checkInDateChanged = existingRes && existingRes.check_in_date !== cbRes.startDate;
           const statusBecameCancelled = existingRes && existingRes.status !== 'canceled' && status === 'canceled';
+          const shouldKeepExistingRaw = Boolean(
+            existingRes?.cloudbeds_raw
+            && hasOperationalReservationDetails(existingRes.cloudbeds_raw)
+            && !hasOperationalReservationDetails(cbRes)
+          );
+          const cloudbedsRawToStore = shouldKeepExistingRaw ? existingRes?.cloudbeds_raw : cbRes;
+          const guestCountryToStore = cbRes.countryCode || existingRes?.guest_country_code || null;
 
           // Upsert reservation
           const { error: upsertError } = await supabase
@@ -319,8 +340,8 @@ serve(async (req) => {
               nights: nights,
               status: status,
               source: cbRes.source || 'cloudbeds',
-              guest_country_code: cbRes.countryCode || null,
-              cloudbeds_raw: cbRes,
+              guest_country_code: guestCountryToStore,
+              cloudbeds_raw: cloudbedsRawToStore,
             }, {
               onConflict: 'reservation_id',
             });
