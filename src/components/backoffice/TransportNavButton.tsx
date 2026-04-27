@@ -74,9 +74,9 @@ export function TransportNavButton({ active = false }: TransportNavButtonProps) 
   }
 
   return (
-    <Button asChild variant="ghost" size="sm" className="relative">
+    <Button asChild variant="ghost" size="sm" className="relative shrink-0">
       <Link to="/backoffice/transport" aria-label={pendingCount > 0 ? `Transport, ${pendingCount} pending requests` : 'Transport'}>
-        <CarFront className="h-4 w-4 mr-2" />
+        <CarFront className="h-4 w-4 sm:mr-2" />
         <span className="hidden sm:inline">Transport</span>
         <PendingBadge count={pendingCount} />
       </Link>

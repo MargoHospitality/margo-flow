@@ -572,7 +572,7 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="container mx-auto flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-3">
           <div className="flex items-center gap-3">
             <Link
               to="/"
@@ -586,11 +586,11 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
               className="h-8 md:h-10 object-contain"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="-mx-1 flex w-full items-center gap-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:w-auto sm:gap-2 sm:overflow-visible sm:px-0 sm:pb-0">
             {isSuperAdmin && (
               <Link to="/admin">
-                <Button variant="ghost" size="sm">
-                  <Shield className="h-4 w-4 mr-2" />
+                <Button variant="ghost" size="sm" className="shrink-0">
+                  <Shield className="h-4 w-4 sm:mr-2" />
                   <span className="hidden sm:inline">Admin</span>
                 </Button>
               </Link>
@@ -601,28 +601,28 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
             </Badge>
             <TransportNavButton />
             <Link to="/backoffice/payments">
-              <Button variant="ghost" size="sm">
-                <CreditCard className="h-4 w-4 mr-2" />
+              <Button variant="ghost" size="sm" className="shrink-0">
+                <CreditCard className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Payments</span>
               </Button>
             </Link>
             <Link to="/backoffice/reviews">
-              <Button variant="ghost" size="sm">
-                <MessageSquareText className="h-4 w-4 mr-2" />
+              <Button variant="ghost" size="sm" className="shrink-0">
+                <MessageSquareText className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Reviews</span>
               </Button>
             </Link>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
+            <Button variant="ghost" size="sm" className="shrink-0" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto px-4 py-6 space-y-6">
+      <main className="flex-1 container mx-auto space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6">
         <Card>
-          <CardHeader className="p-4 pb-3">
+          <CardHeader className="p-3 pb-2 sm:p-4 sm:pb-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -640,14 +640,14 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                   </div>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 sm:flex sm:flex-wrap lg:justify-end">
                 <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={() => updateDate(addDays(selectedDate, -1))}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button type="button" variant="outline" className="h-9 min-w-[190px] justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
+                    <Button type="button" variant="outline" className="h-9 min-w-0 justify-start truncate text-left font-normal sm:min-w-[190px]">
+                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                       {format(selectedDate, 'PPP')}
                     </Button>
                   </PopoverTrigger>
@@ -658,14 +658,14 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                 <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={() => updateDate(addDays(selectedDate, 1))}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-                <Button type="button" variant="secondary" className="h-9" onClick={() => updateDate(parseISO(getTodayIso()))}>
+                <Button type="button" variant="secondary" className="h-9 px-3 sm:px-4" onClick={() => updateDate(parseISO(getTodayIso()))}>
                   Today
                 </Button>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="px-4 pb-4 pt-0">
-            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(170px,1fr)_minmax(160px,1fr)_minmax(190px,1fr)_minmax(220px,1fr)_minmax(220px,1fr)_auto]">
+          <CardContent className="px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(170px,1fr)_minmax(160px,1fr)_minmax(190px,1fr)_minmax(220px,1fr)_minmax(220px,1fr)_auto]">
               <div>
                 <Label className="sr-only">Property</Label>
                 <Select value={selectedRiadId} onValueChange={setSelectedRiadId}>
@@ -751,7 +751,7 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                 </div>
               </div>
 
-              <Button type="button" variant="ghost" size="sm" className="h-10 justify-start px-3 xl:justify-center" onClick={clearFilters}>
+              <Button type="button" variant="ghost" size="sm" className="h-10 justify-start px-3 sm:col-span-2 xl:col-span-1 xl:justify-center" onClick={clearFilters}>
                 Clear filters
               </Button>
             </div>
@@ -798,7 +798,7 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                     isExpanded ? 'border-primary/40 bg-muted/10' : 'hover:bg-muted/20',
                   )}
                 >
-                  <CardContent className="pt-6">
+                  <CardContent className="p-4 sm:p-6">
                     <button
                       type="button"
                       onClick={() => setExpandedReservationId((current) => current === arrival.reservationId ? null : arrival.reservationId)}
@@ -843,21 +843,22 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                         </div>
 
                         <div className="flex flex-col gap-3 lg:min-w-[420px]">
-                          <div className="grid gap-3 sm:grid-cols-3">
-                            <div className="rounded-lg border border-border/60 px-4 py-3">
-                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Check-in</p>
-                              <p className="mt-1 font-medium">{format(parseISO(arrival.checkInDate), 'PPP')}</p>
+                          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                            <div className="rounded-lg border border-border/60 px-3 py-2 sm:px-4 sm:py-3">
+                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-xs">Check-in</p>
+                              <p className="mt-1 text-sm font-medium sm:hidden">{format(parseISO(arrival.checkInDate), 'MMM d')}</p>
+                              <p className="mt-1 hidden font-medium sm:block">{format(parseISO(arrival.checkInDate), 'PPP')}</p>
                             </div>
-                            <div className="rounded-lg border border-border/60 px-4 py-3">
-                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Arrival time</p>
-                              <p className="mt-1 font-medium">{arrival.arrivalTime || '—'}</p>
+                            <div className="rounded-lg border border-border/60 px-3 py-2 sm:px-4 sm:py-3">
+                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-xs">Arrival time</p>
+                              <p className="mt-1 text-sm font-medium sm:text-base">{arrival.arrivalTime || '—'}</p>
                             </div>
-                            <div className="rounded-lg border border-border/60 px-4 py-3">
-                              <p className="text-xs uppercase tracking-wide text-muted-foreground">Guests</p>
-                              <p className="mt-1 font-medium">{arrival.guestCount}</p>
+                            <div className="rounded-lg border border-border/60 px-3 py-2 sm:px-4 sm:py-3">
+                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground sm:text-xs">Guests</p>
+                              <p className="mt-1 text-sm font-medium sm:text-base">{arrival.guestCount}</p>
                             </div>
                           </div>
-                          <div className="flex items-center justify-end text-sm font-medium text-muted-foreground">
+                          <div className="flex items-center justify-between text-sm font-medium text-muted-foreground sm:justify-end">
                             <span>{isExpanded ? 'Hide details' : 'Show details'}</span>
                             {isExpanded ? (
                               <ChevronUp className="ml-2 h-4 w-4" />
@@ -870,12 +871,12 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                     </button>
 
                     {isExpanded && (
-                      <div className="mt-6 border-t border-border/60 pt-6">
+                      <div className="mt-5 border-t border-border/60 pt-5 sm:mt-6 sm:pt-6">
                         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                           <div className="text-sm text-muted-foreground">
                             Expanded operational details for {arrival.guestName}.
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             {notesState?.isLoading && (
                               <Badge variant="outline" className="h-10 rounded-full px-3 text-muted-foreground">
                                 Checking notes...
@@ -1119,7 +1120,7 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
         )}
       </main>
       <AlertDialog open={Boolean(pendingWhatsappLink)} onOpenChange={(open) => !open && setPendingWhatsappLink(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Country code applied</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1135,7 +1136,7 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
         </AlertDialogContent>
       </AlertDialog>
       <Dialog open={Boolean(selectedNotesReservationId)} onOpenChange={(open) => !open && setSelectedNotesReservationId(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl">
           <DialogHeader>
             <DialogTitle>Cloudbeds notes</DialogTitle>
             <DialogDescription>
