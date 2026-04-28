@@ -508,6 +508,31 @@ function pickTransportSummary(transportRequests: TransportRequestRow[]) {
   };
 }
 
+function normalizeArrivalTimeValue(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!match) return trimmed;
+
+  return `${match[1].padStart(2, "0")}:${match[2]}`;
+}
+
+function extractTransportArrivalTime(transport: TransportRequestRow | null) {
+  if (!transport) return null;
+
+  const payloadDetails = transport.payload_details;
+  const payloadArrivalTime = payloadDetails && typeof payloadDetails === "object"
+    ? normalizeArrivalTimeValue(
+        (payloadDetails as Record<string, unknown>).arrival_time
+          ?? (payloadDetails as Record<string, unknown>).arrivalTime,
+      )
+    : null;
+
+  return payloadArrivalTime ?? normalizeArrivalTimeValue(transport.transport_time);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -717,6 +742,7 @@ Deno.serve(async (req) => {
         effectiveRawReservation,
         guestTokenByReservationId.get(reservation.reservation_id),
       );
+      const displayArrivalTime = normalizeArrivalTimeValue(checkin?.arrival_time) ?? extractTransportArrivalTime(activeTransport);
 
       return {
         reservationId: reservation.reservation_id,
@@ -739,7 +765,7 @@ Deno.serve(async (req) => {
         sourceRaw: source.sourceRaw,
         transportStatus,
         checkinStatus,
-        arrivalTime: checkin?.arrival_time ?? null,
+        arrivalTime: displayArrivalTime,
         transport: activeTransport ? {
           id: activeTransport.id,
           status: activeTransport.status,
