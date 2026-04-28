@@ -247,6 +247,7 @@ Deno.serve(async (req) => {
     );
 
     const cloudbedsPropertyIds = [...propertyNameByCloudbedsId.keys()];
+    const allowedCloudbedsPropertyIds = new Set(cloudbedsPropertyIds.map((propertyId) => String(propertyId)));
     const searchParams = new URLSearchParams({
       cloudbedsPropertyIds: cloudbedsPropertyIds.join(","),
       limit: String(limit),
@@ -323,7 +324,16 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: false, error: `Reviews temporarily unavailable (${upstreamFailureCode})` }, 503);
       }
 
-      const reviews = (geaPayload.data?.reviews ?? []).map((review) => ({
+      const reviews = (geaPayload.data?.reviews ?? [])
+        .filter((review) => {
+          if (!review.cloudbedsPropertyId) {
+            console.warn("[get-reviews] Dropping review without cloudbedsPropertyId:", review.id);
+            return false;
+          }
+
+          return allowedCloudbedsPropertyIds.has(String(review.cloudbedsPropertyId));
+        })
+        .map((review) => ({
         id: review.id,
         propertyId: review.propertyId,
         propertyName: (review.cloudbedsPropertyId && propertyNameByCloudbedsId.get(review.cloudbedsPropertyId))

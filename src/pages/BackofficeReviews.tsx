@@ -83,7 +83,7 @@ function getDefaultDateFrom() {
 
 export default function BackofficeReviews() {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading, signOut, isManager, isSuperAdmin, isActive } = useAuth();
+  const { user, isLoading: authLoading, signOut, isManager, isSuperAdmin, isActive, riadIds } = useAuth();
   const defaultDateFrom = useMemo(() => getDefaultDateFrom(), []);
   const [properties, setProperties] = useState<ReviewPropertyFilter[]>([]);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
@@ -108,11 +108,22 @@ export default function BackofficeReviews() {
   const loadProperties = useCallback(async () => {
     setIsLoadingProperties(true);
     try {
-      const { data, error: riadsError } = await supabase
+      if (!isSuperAdmin && riadIds.length === 0) {
+        setProperties([]);
+        return;
+      }
+
+      let query = supabase
         .from('riads')
         .select('id, name, cloudbeds_property_id')
         .not('cloudbeds_property_id', 'is', null)
         .order('name', { ascending: true });
+
+      if (!isSuperAdmin) {
+        query = query.in('id', riadIds);
+      }
+
+      const { data, error: riadsError } = await query;
 
       if (riadsError) {
         throw riadsError;
@@ -125,7 +136,7 @@ export default function BackofficeReviews() {
     } finally {
       setIsLoadingProperties(false);
     }
-  }, []);
+  }, [isSuperAdmin, riadIds]);
 
   const fetchReviews = useCallback(async () => {
     if (!user || !isManager || !isActive) {
