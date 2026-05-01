@@ -27,6 +27,7 @@ interface Riad {
   name: string;
   cloudbeds_property_id: string | null;
   manager_email: string | null;
+  second_manager_email: string | null;
   manager_whatsapp: string | null;
   is_active: boolean;
   arrivals_home_enabled: boolean;
@@ -42,6 +43,7 @@ const EMPTY_RIAD_FORM = {
   name: '',
   cloudbeds_property_id: '',
   manager_email: '',
+  second_manager_email: '',
   manager_whatsapp: '',
   arrivals_home_enabled: false,
   payment_enabled: false,
@@ -556,6 +558,7 @@ export default function Admin() {
             name: riad.name,
             cloudbeds_property_id: riad.cloudbeds_property_id || null,
             manager_email: riad.manager_email || null,
+            second_manager_email: riad.second_manager_email || null,
             manager_whatsapp: riad.manager_whatsapp || null,
             arrivals_home_enabled: Boolean(riad.arrivals_home_enabled)
           })
@@ -585,6 +588,7 @@ export default function Admin() {
             name: riad.name!,
             cloudbeds_property_id: riad.cloudbeds_property_id || null,
             manager_email: riad.manager_email || null,
+            second_manager_email: riad.second_manager_email || null,
             manager_whatsapp: riad.manager_whatsapp || null,
             arrivals_home_enabled: Boolean(riad.arrivals_home_enabled)
           })
@@ -1004,6 +1008,18 @@ export default function Admin() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label>Second Manager Email</Label>
+                    <Input
+                      type="email"
+                      value={editingRiad ? editingRiad.second_manager_email || '' : newRiad.second_manager_email}
+                      onChange={(e) => editingRiad
+                        ? setEditingRiad({ ...editingRiad, second_manager_email: e.target.value })
+                        : setNewRiad({ ...newRiad, second_manager_email: e.target.value })
+                      }
+                      placeholder="copy@example.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label>Manager WhatsApp</Label>
                     <Input
                       value={editingRiad ? editingRiad.manager_whatsapp || '' : newRiad.manager_whatsapp}
@@ -1136,7 +1152,9 @@ export default function Admin() {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{riad.name}</p>
                           <p className="text-xs text-muted-foreground truncate">
-                            {riad.manager_email || 'No email'} • {riad.manager_whatsapp || 'No WhatsApp'}
+                            {riad.manager_email || 'No email'}
+                            {riad.second_manager_email ? ` + ${riad.second_manager_email}` : ''}
+                            {' '}• {riad.manager_whatsapp || 'No WhatsApp'}
                           </p>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <Badge variant={riad.is_active ? 'default' : 'secondary'}>

@@ -24,6 +24,14 @@ interface NotifyManagerRequest {
   isFreeTransfer?: boolean; // True if guest selected complimentary transfer
 }
 
+function buildManagerEmailRecipients(riad: { manager_email?: string | null; second_manager_email?: string | null }) {
+  return Array.from(new Set(
+    [riad.manager_email, riad.second_manager_email]
+      .filter((email): email is string => typeof email === "string" && email.trim().length > 0)
+      .map((email) => email.trim().toLowerCase())
+  ));
+}
+
 async function sendEmail(to: string[], subject: string, html: string) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -240,7 +248,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Fetch manager contact info securely using service role
     const { data: riad, error: riadError } = await supabase
       .from("riads")
-      .select("manager_email, manager_whatsapp, whatsapp_enabled")
+      .select("manager_email, second_manager_email, manager_whatsapp, whatsapp_enabled")
       .eq("id", data.riadId)
       .single();
 
@@ -252,7 +260,8 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    if (!riad.manager_email) {
+    const managerEmailRecipients = buildManagerEmailRecipients(riad);
+    if (managerEmailRecipients.length === 0) {
       console.error("[notify-manager] No manager email configured for riad:", data.riadId);
       return new Response(
         JSON.stringify({ error: "No manager email configured", success: false }),
@@ -260,7 +269,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const managerEmail = riad.manager_email;
+    const managerEmail = managerEmailRecipients[0];
     const managerPhone = riad.manager_whatsapp;
     const whatsappEnabled = riad.whatsapp_enabled ?? false;
     const notificationType = data.isUrgent ? "manager_urgent" : "manager_new_request";
@@ -327,35 +336,36 @@ const handler = async (req: Request): Promise<Response> => {
           ? `🚨 URGENT: New Transport Request (#${data.reservationId})`
           : `New Transport Request from Margo Flow (#${data.reservationId})`;
         
-        const emailResponse = await sendEmail([managerEmail], subject, emailHtml);
+        const emailResponse = await sendEmail(managerEmailRecipients, subject, emailHtml);
         emailSuccess = true;
 
-        // Log email attempt
-        await logNotificationAttempt(supabase, {
-          transportRequestId: data.transportRequestId,
-          notificationType,
-          channel: "email",
-          recipientEmail: managerEmail,
-          status: "sent",
-          providerMessageId: emailResponse.id,
-          isFallback: data.isUrgent && whatsappEnabled && managerPhone ? true : false,
-          metadata: { isUrgent: data.isUrgent },
-        });
+        await Promise.all(managerEmailRecipients.map((recipientEmail) => logNotificationAttempt(supabase, {
+            transportRequestId: data.transportRequestId,
+            notificationType,
+            channel: "email",
+            recipientEmail,
+            status: "sent",
+            providerMessageId: emailResponse.id,
+            isFallback: data.isUrgent && whatsappEnabled && managerPhone ? true : false,
+            metadata: { isUrgent: data.isUrgent },
+          })
+        ));
 
         console.log("[notify-manager] Email sent successfully:", emailResponse.id);
       } catch (emailErr: any) {
         console.error("[notify-manager] Email failed:", emailErr);
         
-        await logNotificationAttempt(supabase, {
-          transportRequestId: data.transportRequestId,
-          notificationType,
-          channel: "email",
-          recipientEmail: managerEmail,
-          status: "failed",
-          errorMessage: emailErr.message,
-          isFallback: data.isUrgent && whatsappEnabled && managerPhone ? true : false,
-          metadata: { isUrgent: data.isUrgent },
-        });
+        await Promise.all(managerEmailRecipients.map((recipientEmail) => logNotificationAttempt(supabase, {
+            transportRequestId: data.transportRequestId,
+            notificationType,
+            channel: "email",
+            recipientEmail,
+            status: "failed",
+            errorMessage: emailErr.message,
+            isFallback: data.isUrgent && whatsappEnabled && managerPhone ? true : false,
+            metadata: { isUrgent: data.isUrgent },
+          })
+        ));
       }
     }
 

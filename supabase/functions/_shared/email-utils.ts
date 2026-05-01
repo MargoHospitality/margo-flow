@@ -54,6 +54,15 @@ export function normalizeEmailAddress(value: string) {
   return trimmed;
 }
 
+export function normalizeEmailRecipients(value: string | string[]) {
+  const rawRecipients = Array.isArray(value) ? value : [value];
+  const recipients = rawRecipients
+    .filter((recipient): recipient is string => typeof recipient === "string" && recipient.trim().length > 0)
+    .map((recipient) => normalizeEmailAddress(recipient));
+
+  return Array.from(new Set(recipients));
+}
+
 export async function sendPaymentLinkEmail(params: {
   to: string;
   guestFirstName: string;
@@ -131,7 +140,7 @@ export async function sendPaymentLinkEmail(params: {
 }
 
 export async function sendManagerPaymentConfirmationEmail(params: {
-  to: string;
+  to: string | string[];
   propertyName: string;
   reservationId: string;
   guestName: string;
@@ -140,7 +149,11 @@ export async function sendManagerPaymentConfirmationEmail(params: {
   cloudbedsReference?: string | null;
   backofficeUrl?: string;
 }) {
-  const normalizedEmail = normalizeEmailAddress(params.to);
+  const recipients = normalizeEmailRecipients(params.to);
+  if (recipients.length === 0) {
+    throw new Error("Manager email is required");
+  }
+
   const subject = `Payment received for ${params.propertyName} - ${params.reservationId}`;
   const backofficeUrl = params.backofficeUrl || "https://flow.margo-hospitality.com/backoffice/payments";
   const methodSummary = params.paymentMethodSummary?.trim() || "Stripe Checkout";
@@ -194,7 +207,7 @@ export async function sendManagerPaymentConfirmationEmail(params: {
   `.trim();
 
   const emailResult = await sendEmail({
-    to: [normalizedEmail],
+    to: recipients,
     subject,
     html,
   });
@@ -202,6 +215,6 @@ export async function sendManagerPaymentConfirmationEmail(params: {
   return {
     success: true,
     emailId: emailResult.id || null,
-    email: normalizedEmail,
+    email: recipients.join(", "),
   };
 }

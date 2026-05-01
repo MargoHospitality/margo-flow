@@ -478,6 +478,7 @@ export type Database = {
           manager_email: string | null
           manager_whatsapp: string | null
           name: string
+          second_manager_email: string | null
           updated_at: string
           whatsapp_enabled: boolean
         }
@@ -491,6 +492,7 @@ export type Database = {
           manager_email?: string | null
           manager_whatsapp?: string | null
           name: string
+          second_manager_email?: string | null
           updated_at?: string
           whatsapp_enabled?: boolean
         }
@@ -504,6 +506,7 @@ export type Database = {
           manager_email?: string | null
           manager_whatsapp?: string | null
           name?: string
+          second_manager_email?: string | null
           updated_at?: string
           whatsapp_enabled?: boolean
         }

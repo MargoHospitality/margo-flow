@@ -519,6 +519,7 @@ const handler = async (req: Request): Promise<Response> => {
         riad:riads!transport_requests_riad_id_fkey (
           name,
           manager_email,
+          second_manager_email,
           manager_whatsapp
         ),
         offer:transport_offers!transport_requests_transport_offer_id_fkey (
@@ -662,9 +663,13 @@ const handler = async (req: Request): Promise<Response> => {
     // ============ SEND MANAGER REMINDERS ============
     for (const request of managerRequestsToRemind) {
       const riad = request.riad as any;
-      const managerEmail = riad?.manager_email;
+      const managerEmailRecipients = Array.from(new Set(
+        [riad?.manager_email, riad?.second_manager_email]
+          .filter((email): email is string => typeof email === "string" && email.trim().length > 0)
+          .map((email) => email.trim().toLowerCase())
+      ));
       
-      if (!managerEmail) {
+      if (managerEmailRecipients.length === 0) {
         console.log(`[send-reminder-emails] No manager email for request ${request.id}, skipping manager reminder`);
         continue;
       }
@@ -688,33 +693,35 @@ const handler = async (req: Request): Promise<Response> => {
         });
 
         const emailResponse = await sendEmail(
-          [managerEmail],
+          managerEmailRecipients,
           `Transport Reminder: ${guestName} - Tomorrow at ${request.transport_time} (#${request.reservation_id})`,
           emailHtml
         );
 
-        await logNotificationAttempt(supabase, {
-          transportRequestId: request.id,
-          notificationType: "manager_reminder",
-          channel: "email",
-          recipientEmail: managerEmail,
-          status: "sent",
-          providerMessageId: emailResponse.id,
-        });
+        await Promise.all(managerEmailRecipients.map((recipientEmail) => logNotificationAttempt(supabase, {
+            transportRequestId: request.id,
+            notificationType: "manager_reminder",
+            channel: "email",
+            recipientEmail,
+            status: "sent",
+            providerMessageId: emailResponse.id,
+          })
+        ));
 
         managerSent++;
-        console.log(`[send-reminder-emails] Sent manager reminder to ${managerEmail} for request ${request.id}`);
+        console.log(`[send-reminder-emails] Sent manager reminder to ${managerEmailRecipients.join(", ")} for request ${request.id}`);
       } catch (err: any) {
         console.error(`[send-reminder-emails] Failed to send manager reminder for ${request.id}:`, err);
         
-        await logNotificationAttempt(supabase, {
-          transportRequestId: request.id,
-          notificationType: "manager_reminder",
-          channel: "email",
-          recipientEmail: managerEmail,
-          status: "failed",
-          errorMessage: err.message,
-        });
+        await Promise.all(managerEmailRecipients.map((recipientEmail) => logNotificationAttempt(supabase, {
+            transportRequestId: request.id,
+            notificationType: "manager_reminder",
+            channel: "email",
+            recipientEmail,
+            status: "failed",
+            errorMessage: err.message,
+          })
+        ));
 
         managerFailed++;
       }

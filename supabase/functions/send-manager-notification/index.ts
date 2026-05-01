@@ -43,8 +43,17 @@ interface ManagerNotificationRequest {
   flightTrainNumber?: string;
   guestComment?: string;
   managerEmail: string;
+  secondManagerEmail?: string;
   appUrl: string;
   requestId: string;
+}
+
+function buildEmailRecipients(primaryEmail: string, secondEmail?: string) {
+  return Array.from(new Set(
+    [primaryEmail, secondEmail]
+      .filter((email): email is string => typeof email === "string" && email.trim().length > 0)
+      .map((email) => email.trim().toLowerCase())
+  ));
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -66,6 +75,7 @@ const handler = async (req: Request): Promise<Response> => {
       flightTrainNumber,
       guestComment,
       managerEmail,
+      secondManagerEmail,
       appUrl,
       requestId,
     } = data;
@@ -190,7 +200,7 @@ const handler = async (req: Request): Promise<Response> => {
 </html>
     `;
     const subject = `New Transport Request from Margo Flow (#${reservationId})`;
-    const emailResponse = await sendEmail([managerEmail], subject, emailHtml);
+    const emailResponse = await sendEmail(buildEmailRecipients(managerEmail, secondManagerEmail), subject, emailHtml);
 
     console.log("Manager notification sent successfully:", emailResponse);
 

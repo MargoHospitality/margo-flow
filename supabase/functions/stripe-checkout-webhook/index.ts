@@ -109,7 +109,7 @@ serve(async (req) => {
         const [{ data: riad, error: riadError }, { data: reservation, error: reservationError }] = await Promise.all([
           adminClient
             .from("riads")
-            .select("name, manager_email")
+            .select("name, manager_email, second_manager_email")
             .eq("id", paymentRecord.riad_id)
             .maybeSingle(),
           adminClient
@@ -123,14 +123,17 @@ serve(async (req) => {
         if (riadError) throw riadError;
         if (reservationError) throw reservationError;
 
-        if (riad?.manager_email) {
+        const managerRecipients = [riad?.manager_email, riad?.second_manager_email]
+          .filter((email): email is string => typeof email === "string" && email.trim().length > 0);
+
+        if (managerRecipients.length > 0) {
           const guestName = [reservation?.guest_first_name, reservation?.guest_last_name]
             .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
             .join(" ")
             || paymentRecord.reservation_id;
 
           await sendManagerPaymentConfirmationEmail({
-            to: riad.manager_email,
+            to: managerRecipients,
             propertyName: riad.name || "your property",
             reservationId: paymentRecord.reservation_id,
             guestName,
