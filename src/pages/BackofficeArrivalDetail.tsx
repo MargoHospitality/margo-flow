@@ -2,30 +2,23 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import {
-  ArrowLeft,
   BedDouble,
   CarFront,
-  CreditCard,
   Globe2,
   Home,
   Hotel,
   Loader2,
-  LogOut,
   MessageCircle,
-  MessageSquareText,
   Plane,
-  Shield,
   UserCheck,
-  Users,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { TransportNavButton } from '@/components/backoffice/TransportNavButton';
+import { BackofficeHeader } from '@/components/backoffice/BackofficeHeader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import margoflowLogo from '@/assets/margoflow-logo.png';
 import { ArrivalRecord, ArrivalSourceKey, getCheckinBadgeClass, getCheckinLabel, getTransportBadgeClass, getTransportLabel } from '@/lib/arrivals';
 
 type ArrivalDetailResponse = {
@@ -156,50 +149,7 @@ export default function BackofficeArrivalDetail() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              to={backHref}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5 text-muted-foreground" />
-            </Link>
-            <img
-              src={margoflowLogo}
-              alt="MargoFlow"
-              className="h-8 md:h-10 object-contain"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            {isSuperAdmin && (
-              <Link to="/admin">
-                <Button variant="ghost" size="sm">
-                  <Shield className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Admin</span>
-                </Button>
-              </Link>
-            )}
-            <TransportNavButton />
-            <Link to="/backoffice/payments">
-              <Button variant="ghost" size="sm">
-                <CreditCard className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Payments</span>
-              </Button>
-            </Link>
-            <Link to="/backoffice/reviews">
-              <Button variant="ghost" size="sm">
-                <MessageSquareText className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Reviews</span>
-              </Button>
-            </Link>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Logout</span>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <BackofficeHeader active="arrivals" isSuperAdmin={isSuperAdmin} onLogout={handleLogout} backTo={backHref} />
 
       <main className="flex-1 container mx-auto px-4 py-6 space-y-6">
         {isLoadingArrival ? (

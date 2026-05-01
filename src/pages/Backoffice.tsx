@@ -1,14 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { RequestCard } from '@/components/backoffice/RequestCard';
-import { TransportNavButton } from '@/components/backoffice/TransportNavButton';
-import { Loader2, LogOut, Bell, Shield, AlertCircle, Search, Calendar, Clock, CalendarDays, List, XCircle, Eye, EyeOff, CreditCard, MessageSquareText, Users } from 'lucide-react';
-import margoflowLogo from '@/assets/margoflow-logo.png';
+import { BackofficeHeader } from '@/components/backoffice/BackofficeHeader';
+import { Loader2, LogOut, Bell, AlertCircle, Search, Calendar, Clock, CalendarDays, List, XCircle, Eye, EyeOff } from 'lucide-react';
 import { format, isToday, isTomorrow, addDays, parseISO, isAfter, isBefore } from 'date-fns';
 
 interface TransportRequest {
@@ -251,49 +250,7 @@ export default function Backoffice() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <img 
-            src={margoflowLogo} 
-            alt="MargoFlow" 
-            className="h-8 md:h-10 object-contain"
-          />
-          <div className="flex items-center gap-2">
-            {isSuperAdmin && (
-              <Link to="/admin">
-                <Button variant="ghost" size="sm">
-                  <Shield className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Admin</span>
-                </Button>
-              </Link>
-            )}
-            <Link to="/backoffice">
-              <Button variant="ghost" size="sm">
-                <Users className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Arrivals</span>
-              </Button>
-            </Link>
-            <TransportNavButton active />
-            <Link to="/backoffice/payments">
-              <Button variant="ghost" size="sm">
-                <CreditCard className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Payments</span>
-              </Button>
-            </Link>
-            <Link to="/backoffice/reviews">
-              <Button variant="ghost" size="sm">
-                <MessageSquareText className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Reviews</span>
-              </Button>
-            </Link>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">{t('logout')}</span>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <BackofficeHeader active="transport" isSuperAdmin={isSuperAdmin} onLogout={handleLogout} />
 
       {/* Content */}
       <main className="flex-1 container mx-auto px-4 py-6">

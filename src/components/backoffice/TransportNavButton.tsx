@@ -3,9 +3,7 @@ import { useEffect, useState } from 'react';
 import { CarFront } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 type TransportNavButtonProps = {
   active?: boolean;
@@ -65,16 +63,22 @@ export function TransportNavButton({ active = false }: TransportNavButtonProps) 
 
   if (active) {
     return (
-      <Badge variant="outline" className="relative hidden sm:inline-flex pr-3">
-        <CarFront className="mr-2 h-3.5 w-3.5" />
-        Transport
+      <Button
+        variant="outline"
+        size="sm"
+        className="relative h-9 w-9 shrink-0 px-0 sm:w-auto sm:px-3"
+        aria-current="page"
+        aria-label={pendingCount > 0 ? `Transport, ${pendingCount} pending requests` : 'Transport'}
+      >
+        <CarFront className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:inline">Transport</span>
         <PendingBadge count={pendingCount} />
-      </Badge>
+      </Button>
     );
   }
 
   return (
-    <Button asChild variant="ghost" size="sm" className="relative shrink-0">
+    <Button asChild variant="ghost" size="sm" className="relative h-9 w-9 shrink-0 px-0 sm:w-auto sm:px-3">
       <Link to="/backoffice/transport" aria-label={pendingCount > 0 ? `Transport, ${pendingCount} pending requests` : 'Transport'}>
         <CarFront className="h-4 w-4 sm:mr-2" />
         <span className="hidden sm:inline">Transport</span>

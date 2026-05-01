@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { format, parseISO, subDays } from 'date-fns';
-import { AlertCircle, ArrowLeft, CreditCard, Loader2, LogOut, MessageSquareText, RefreshCw, Shield, Star, Users } from 'lucide-react';
+import { AlertCircle, Loader2, MessageSquareText, RefreshCw, Star } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { TransportNavButton } from '@/components/backoffice/TransportNavButton';
+import { BackofficeHeader } from '@/components/backoffice/BackofficeHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import margoflowLogo from '@/assets/margoflow-logo.png';
 
 type ReviewItem = {
   id: number;
@@ -242,52 +241,7 @@ export default function BackofficeReviews() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <Link
-            to="/backoffice"
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 text-muted-foreground" />
-          </Link>
-          <img
-            src={margoflowLogo}
-            alt="MargoFlow"
-            className="h-8 md:h-10 object-contain"
-          />
-          <div className="flex items-center gap-2">
-            {isSuperAdmin && (
-              <Link to="/admin">
-                <Button variant="ghost" size="sm">
-                  <Shield className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Admin</span>
-                </Button>
-              </Link>
-            )}
-            <Link to="/backoffice">
-              <Button variant="ghost" size="sm">
-                <Users className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Arrivals</span>
-              </Button>
-            </Link>
-            <TransportNavButton />
-            <Link to="/backoffice/payments">
-              <Button variant="ghost" size="sm">
-                <CreditCard className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Payments</span>
-              </Button>
-            </Link>
-            <Badge variant="outline" className="hidden sm:inline-flex">
-              <MessageSquareText className="mr-2 h-3.5 w-3.5" />
-              Reviews
-            </Badge>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Logout</span>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <BackofficeHeader active="reviews" isSuperAdmin={isSuperAdmin} onLogout={handleLogout} backTo="/backoffice" />
 
       <main className="flex-1 container mx-auto px-4 py-6">
         <div className="space-y-6">

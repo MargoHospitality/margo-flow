@@ -1,24 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import {
   AlertTriangle,
-  ArrowLeft,
   BadgeCheck,
   CalendarIcon,
   ExternalLink,
   Loader2,
   Mail,
-  MessageSquareText,
   RefreshCw,
   Search,
   Send,
-  Shield,
-  Users,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { TransportNavButton } from '@/components/backoffice/TransportNavButton';
+import { BackofficeHeader } from '@/components/backoffice/BackofficeHeader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,7 +25,6 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import margoflowLogo from '@/assets/margoflow-logo.png';
 import { toast } from 'sonner';
 
 interface PaymentSetting {
@@ -216,7 +211,7 @@ function getRecentPaymentGuestName(payment: RecentPaymentActivity) {
 
 export default function BackofficePayments() {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading, isManager, isSuperAdmin, isActive } = useAuth();
+  const { user, isLoading: authLoading, isManager, isSuperAdmin, isActive, signOut } = useAuth();
   const [settings, setSettings] = useState<PaymentSetting[]>([]);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [selectedRiadId, setSelectedRiadId] = useState('');
@@ -653,6 +648,11 @@ export default function BackofficePayments() {
     }
   }
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -676,48 +676,7 @@ export default function BackofficePayments() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <Link
-            to="/backoffice"
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 text-muted-foreground" />
-          </Link>
-          <img
-            src={margoflowLogo}
-            alt="MargoFlow"
-            className="h-8 md:h-10 object-contain"
-          />
-          <div className="flex items-center gap-2">
-            {isSuperAdmin && (
-              <Link to="/admin">
-                <Button variant="ghost" size="sm">
-                  <Shield className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Admin</span>
-                </Button>
-              </Link>
-            )}
-            <Link to="/backoffice">
-              <Button variant="ghost" size="sm">
-                <Users className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Arrivals</span>
-              </Button>
-            </Link>
-            <TransportNavButton />
-            <Link to="/backoffice/reviews">
-              <Button variant="ghost" size="sm">
-                <MessageSquareText className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Reviews</span>
-              </Button>
-            </Link>
-            <Badge variant="outline" className="hidden sm:inline-flex">
-              <BadgeCheck className="mr-2 h-3.5 w-3.5" />
-              Payment Links
-            </Badge>
-          </div>
-        </div>
-      </header>
+      <BackofficeHeader active="payments" isSuperAdmin={isSuperAdmin} onLogout={handleLogout} backTo="/backoffice" />
 
       <main className="flex-1 container mx-auto px-4 py-6">
         <div className={cn(

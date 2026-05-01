@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,12 +12,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Search, UserCog, Shield, UserPlus, Users, Building, Truck, MapPin, Cloud, MessageSquare, Filter, MailCheck, RefreshCw, KeyRound, Clock, CreditCard } from 'lucide-react';
+import { Loader2, Search, UserCog, UserPlus, Users, Building, Truck, MapPin, Cloud, MessageSquare, Filter, MailCheck, RefreshCw, KeyRound, Clock, CreditCard } from 'lucide-react';
 import CloudbedsIntegration from '@/components/admin/CloudbedsIntegration';
 import WhatsAppMonitoring from '@/components/admin/WhatsAppMonitoring';
 import { SearchablePropertySelect } from '@/components/admin/SearchablePropertySelect';
 import { Badge } from '@/components/ui/badge';
-import margoflowLogo from '@/assets/margoflow-logo.png';
+import { BackofficeHeader } from '@/components/backoffice/BackofficeHeader';
 import type { Database } from '@/integrations/supabase/types';
 
 type AppRole = 'manager' | 'super_admin';
@@ -104,7 +104,7 @@ interface UserData {
 
 export default function Admin() {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading, isSuperAdmin } = useAuth();
+  const { user, isLoading: authLoading, isSuperAdmin, signOut } = useAuth();
   const { t } = useLanguage();
   
   const [activeTab, setActiveTab] = useState('users');
@@ -665,6 +665,11 @@ export default function Admin() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -679,26 +684,7 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <Link 
-            to="/backoffice" 
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 text-muted-foreground" />
-          </Link>
-          <img 
-            src={margoflowLogo} 
-            alt="MargoFlow" 
-            className="h-8 md:h-10 object-contain"
-          />
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
-            <span className="text-sm font-medium hidden sm:inline">Admin</span>
-          </div>
-        </div>
-      </header>
+      <BackofficeHeader active="admin" isSuperAdmin={isSuperAdmin} onLogout={handleLogout} backTo="/backoffice" />
 
       {/* Main content */}
       <main className="flex-1 container mx-auto px-4 py-6">
