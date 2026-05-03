@@ -157,6 +157,19 @@ function extractGuestPhone(rawReservation: Record<string, unknown> | null | unde
   ]);
 }
 
+function extractGuestEmail(rawReservation: Record<string, unknown> | null | undefined, checkinGuests: Array<Record<string, unknown>>) {
+  const mainGuest = extractMainGuest(rawReservation);
+  const submittedPrimaryGuest = checkinGuests[0] ?? null;
+
+  return pickFirstString([
+    mainGuest?.guestEmail,
+    mainGuest?.email,
+    submittedPrimaryGuest?.email,
+    rawReservation?.guestEmail,
+    rawReservation?.email,
+  ]);
+}
+
 function extractGuestCountry(
   reservationCountryCode: string | null | undefined,
   rawReservation: Record<string, unknown> | null | undefined,
@@ -735,6 +748,7 @@ Deno.serve(async (req) => {
       const propertyName = reservation.riad_id ? propertyNameByRiadId.get(reservation.riad_id) ?? "Property unavailable" : "Property unavailable";
       const activeTransportOffer = getRelationValue(activeTransport?.transport_offer);
       const guestPhone = extractGuestPhone(effectiveRawReservation, parsedCheckinGuests);
+      const guestEmail = extractGuestEmail(effectiveRawReservation, parsedCheckinGuests);
       const guestCountry = extractGuestCountry(reservation.guest_country_code, effectiveRawReservation, parsedCheckinGuests);
       const guestCount = extractGuestCount(effectiveRawReservation, parsedCheckinGuests);
       const roomNames = extractRoomNames(effectiveRawReservation);
@@ -754,6 +768,7 @@ Deno.serve(async (req) => {
         guestLastName: reservation.guest_last_name,
         guestCountryCode: guestCountry,
         guestPhone,
+        guestEmail,
         guestAppLink,
         checkInDate: reservation.check_in_date,
         checkOutDate: reservation.check_out_date,

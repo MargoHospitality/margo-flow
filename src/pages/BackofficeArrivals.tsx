@@ -15,6 +15,7 @@ import {
   Hotel,
   Link2,
   Loader2,
+  Mail,
   MessageSquareText,
   Plane,
   Search,
@@ -193,6 +194,15 @@ function buildWhatsappLink(phone: string | null, guestCountryCode: string | null
     countryCodeApplied,
     dialCodeApplied,
   };
+}
+
+function buildMailtoLink(email: string | null, guestName: string, propertyName: string) {
+  if (!email?.trim()) return null;
+
+  const subject = encodeURIComponent(`Your stay at ${propertyName}`);
+  const body = encodeURIComponent(`Hello ${guestName},\n\n`);
+
+  return `mailto:${email.trim()}?subject=${subject}&body=${body}`;
 }
 
 async function copyToClipboard(value: string) {
@@ -729,6 +739,7 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
               const SourceIcon = getSourceIcon(arrival.sourceKey);
               const isExpanded = expandedReservationId === arrival.reservationId;
               const whatsappLink = buildWhatsappLink(arrival.guestPhone, arrival.guestCountryCode);
+              const mailtoLink = buildMailtoLink(arrival.guestEmail, arrival.guestName, arrival.propertyName);
               const guestAppUrl = arrival.guestAppLink;
               const notesState = cloudbedsNotesByReservationId[arrival.reservationId];
               const transportDetailEntries = Object.entries(arrival.transport?.payloadDetails ?? {})
@@ -858,6 +869,21 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                             >
                               <Link2 className="h-4 w-4" />
                             </Button>
+                            {mailtoLink && (
+                              <Button
+                                asChild
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                className="h-10 w-10 rounded-full"
+                                aria-label="Email guest"
+                                title="Email guest"
+                              >
+                                <a href={mailtoLink}>
+                                  <Mail className="h-4 w-4" />
+                                </a>
+                              </Button>
+                            )}
                             {whatsappLink && (
                               <Button
                                 type="button"

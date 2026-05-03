@@ -60,6 +60,7 @@ export type ArrivalRecord = {
   guestLastName: string;
   guestCountryCode: string | null;
   guestPhone: string | null;
+  guestEmail: string | null;
   guestAppLink: string | null;
   checkInDate: string;
   checkOutDate: string | null;
