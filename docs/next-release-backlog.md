@@ -88,6 +88,25 @@ Potential improvements:
 - More explicit manager confirmation email.
 - Safer handling for split payments.
 
+## 6. Reviews: Unread Counter
+
+Priority: medium.
+
+Add a small red counter on the `Reviews` navigation item when new reviews are available and unread for the current user.
+
+Expected behavior:
+- Count unread reviews per user, not globally.
+- If the admin opens Reviews, only the admin read state is updated.
+- If a manager opens Reviews, only that manager read state is updated.
+- Keep GEA as the source of truth for reviews.
+- Store only read state in Margo Flow, not review content.
+
+Recommended implementation:
+- Add a `review_read_states` table with `user_id`, property scope, and `last_read_at`.
+- Add a backend unread-count endpoint that applies the existing property ACL before querying/counting reviews.
+- Add a mark-as-read endpoint called when the Reviews page is opened.
+- Initialize first visit quietly so users do not get a large historical unread badge on rollout.
+
 ## Suggested Order
 
 1. Cloudbeds data quality layer.
@@ -95,3 +114,4 @@ Potential improvements:
 3. Backend ACL hardening pass.
 4. System Activity admin page.
 5. Margo Pay lifecycle improvements.
+6. Reviews unread counter.
