@@ -20,7 +20,8 @@ import {
   Clock,
   Building,
   User,
-  Bell
+  Bell,
+  WalletCards
 } from 'lucide-react';
 import { format, parseISO, subHours, subDays } from 'date-fns';
 
@@ -53,6 +54,12 @@ interface ErrorGroup {
   lastOccurrence: string;
 }
 
+interface TwilioBalance {
+  balance: string | null;
+  currency: string | null;
+  fetchedAt: string;
+}
+
 type TimeRange = '24h' | '7d' | '30d';
 
 export default function WhatsAppMonitoring() {
@@ -60,6 +67,8 @@ export default function WhatsAppMonitoring() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [attempts, setAttempts] = useState<NotificationAttempt[]>([]);
   const [riads, setRiads] = useState<WhatsAppRiad[]>([]);
+  const [twilioBalance, setTwilioBalance] = useState<TwilioBalance | null>(null);
+  const [twilioBalanceError, setTwilioBalanceError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
   const [isTogglingWhatsApp, setIsTogglingWhatsApp] = useState<string | null>(null);
 
@@ -70,9 +79,42 @@ export default function WhatsAppMonitoring() {
   async function fetchData() {
     setIsLoading(true);
     try {
-      await Promise.all([fetchAttempts(), fetchRiads()]);
+      await Promise.all([fetchAttempts(), fetchRiads(), fetchTwilioBalance()]);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function getAccessToken() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Authentication required');
+    }
+
+    return session.access_token;
+  }
+
+  async function fetchTwilioBalance() {
+    try {
+      setTwilioBalanceError(null);
+      const token = await getAccessToken();
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-twilio-balance`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to load Twilio balance');
+      }
+
+      setTwilioBalance(result.data as TwilioBalance);
+    } catch (error) {
+      console.error('Error fetching Twilio balance:', error);
+      setTwilioBalance(null);
+      setTwilioBalanceError(error instanceof Error ? error.message : 'Failed to load Twilio balance');
     }
   }
 
@@ -243,6 +285,12 @@ export default function WhatsAppMonitoring() {
 
   const anyWhatsAppEnabled = riads.some(r => r.whatsapp_enabled);
   const lastAttempt = attempts.find(a => a.channel === 'whatsapp');
+  const twilioBalanceValue = twilioBalance?.balance !== null && twilioBalance?.balance !== undefined
+    ? Number(twilioBalance.balance)
+    : null;
+  const twilioBalanceLabel = twilioBalanceValue !== null && Number.isFinite(twilioBalanceValue)
+    ? `${twilioBalanceValue.toFixed(2)} ${twilioBalance?.currency || ''}`.trim()
+    : 'Unavailable';
 
   const getNotificationTypeLabel = (type: string) => {
     switch (type) {
@@ -310,7 +358,27 @@ export default function WhatsAppMonitoring() {
       </div>
 
       {/* Level 1: Global Status */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
+        {/* Twilio Balance */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Twilio Balance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              <WalletCards className={twilioBalanceError ? 'h-8 w-8 text-amber-600' : 'h-8 w-8 text-primary'} />
+              <div>
+                <p className={twilioBalanceError ? 'font-semibold text-amber-700' : 'font-semibold text-primary'}>
+                  {twilioBalanceError ? 'Unavailable' : twilioBalanceLabel}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {twilioBalance?.fetchedAt ? `Updated ${format(parseISO(twilioBalance.fetchedAt), 'HH:mm')}` : 'Live account balance'}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* WhatsApp Sender Status */}
         <Card>
           <CardHeader className="pb-2">
