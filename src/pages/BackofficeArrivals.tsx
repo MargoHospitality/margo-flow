@@ -48,6 +48,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -237,6 +238,40 @@ function formatCountryDisplay(countryValue: string | null) {
   }
 
   return normalized;
+}
+
+function getCountryFullName(countryValue: string | null) {
+  if (!countryValue) return null;
+  const normalized = countryValue.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) return null;
+
+  try {
+    return new Intl.DisplayNames(['fr'], { type: 'region' }).of(normalized) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function CountryDisplay({ countryCode }: { countryCode: string | null }) {
+  const display = formatCountryDisplay(countryCode);
+  const fullName = getCountryFullName(countryCode);
+
+  if (!fullName || display === '—') {
+    return <span>{display}</span>;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="cursor-help underline decoration-muted-foreground/30 underline-offset-4">
+          {display}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{fullName}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 function humanizeToken(value: string | null | undefined) {
@@ -926,7 +961,9 @@ export default function BackofficeArrivals({ allowedRiadIds = null }: Backoffice
                                 </div>
                                 <div className={reservationStyles.field}>
                                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Guest country</p>
-                                  <p className="mt-1 font-medium">{formatCountryDisplay(arrival.guestCountryCode)}</p>
+                                  <p className="mt-1 font-medium">
+                                    <CountryDisplay countryCode={arrival.guestCountryCode} />
+                                  </p>
                                 </div>
                                 <div className={reservationStyles.field}>
                                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Rooms</p>
