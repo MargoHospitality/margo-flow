@@ -461,6 +461,10 @@ function buildGuestAppLinkFromToken(token: string) {
 }
 
 function extractGuestAppLink(rawReservation: Record<string, unknown> | null | undefined, fallbackToken: string | null | undefined) {
+  // Prefer the active token from Margo Flow. Cloudbeds custom fields can keep an
+  // older guest_app_link after a token rotation, which creates stale links.
+  if (fallbackToken) return buildGuestAppLinkFromToken(fallbackToken);
+
   const link = extractCustomFieldValue(rawReservation, [
     "guest_app_link",
     "link_guest_app",
@@ -475,7 +479,7 @@ function extractGuestAppLink(rawReservation: Record<string, unknown> | null | un
     "guest_app_token",
   ]);
 
-  return token ? buildGuestAppLinkFromToken(token) : fallbackToken ? buildGuestAppLinkFromToken(fallbackToken) : null;
+  return token ? buildGuestAppLinkFromToken(token) : null;
 }
 
 function pickTransportSummary(transportRequests: TransportRequestRow[]) {
